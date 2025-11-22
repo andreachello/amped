@@ -1,0 +1,50 @@
+import express, { Request, Response } from 'express'
+import cors from 'cors'
+import { deployContract } from './deploy.js'
+
+const app = express()
+const PORT = 3001
+
+// Middleware
+app.use(cors())
+app.use(express.json({ limit: '10mb' }))
+
+// Health check
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({ status: 'ok', timestamp: Date.now() })
+})
+
+// Deploy endpoint
+app.post('/api/deploy', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body
+
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({
+        error: 'Missing or invalid "code" parameter'
+      })
+    }
+
+    // Basic validation
+    if (!code.includes('contract Counter')) {
+      return res.status(400).json({
+        error: 'Contract must be named "Counter"'
+      })
+    }
+
+    // Deploy the contract
+    const result = await deployContract(code)
+
+    res.json(result)
+  } catch (error: any) {
+    console.error('Deployment error:', error)
+    res.status(500).json({
+      error: error.message || 'Deployment failed',
+      details: error.stderr || error.stdout || ''
+    })
+  }
+})
+
+app.listen(PORT, () => {
+  console.log(`🚀 Deployment API running on http://localhost:${PORT}`)
+})
