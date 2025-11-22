@@ -1,0 +1,5 @@
+{
+	"dependencies": {
+		"@codemirror/lang-sql": "^6.10.0"
+	}
+}

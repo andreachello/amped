@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express'
 import cors from 'cors'
 import { deployContract } from './deploy.js'
+import { performAmpQuery } from '../lib/runtime.js'
 
 const app = express()
 const PORT = 3001
@@ -41,6 +42,34 @@ app.post('/api/deploy', async (req: Request, res: Response) => {
     res.status(500).json({
       error: error.message || 'Deployment failed',
       details: error.stderr || error.stdout || ''
+    })
+  }
+})
+
+// SQL Query endpoint
+app.post('/api/query', async (req: Request, res: Response) => {
+  try {
+    const { query } = req.body
+
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({
+        error: 'Missing or invalid "query" parameter'
+      })
+    }
+
+    // Execute the Amp query
+    const results = await performAmpQuery(query)
+
+    res.json({
+      success: true,
+      results,
+      count: results.length
+    })
+  } catch (error: any) {
+    console.error('Query error:', error)
+    res.status(500).json({
+      error: error.message || 'Query failed',
+      details: error.toString()
     })
   }
 })

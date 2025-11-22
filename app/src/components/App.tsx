@@ -13,6 +13,7 @@ import { ViewFunctionDisplay } from "./ViewFunctionDisplay.tsx";
 import { DynamicFunctionTables } from "./DynamicFunctionTables.tsx";
 import { DeploymentSelector } from "./DeploymentSelector.tsx";
 import { LogsAndTransactionsTabs } from "./LogsAndTransactionsTabs.tsx";
+import { SQLQueryInterface } from "./SQLQueryInterface.tsx";
 import {
   addDeployment,
   loadDeployments,
@@ -47,6 +48,9 @@ export function App() {
 
   // Deployment history state
   const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null)
+
+  // Top-level tab state
+  const [activeMainTab, setActiveMainTab] = useState<'contract' | 'sql'>('contract')
 
   // Load deployment history on mount
   useEffect(() => {
@@ -143,86 +147,131 @@ export function App() {
           </div>
         </div>
       </div>
+
+      {/* Main Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <nav className="-mb-px flex space-x-8" aria-label="Main Tabs">
+            <button
+              onClick={() => setActiveMainTab('contract')}
+              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-base transition-colors ${
+                activeMainTab === 'contract'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              Edit & Deploy Contract
+            </button>
+            <button
+              onClick={() => setActiveMainTab('sql')}
+              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-base transition-colors ${
+                activeMainTab === 'sql'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              SQL Query Interface
+            </button>
+          </nav>
+        </div>
+      </div>
+
       <main className="w-full flex flex-col gap-y-6 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Editor and Deploy */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Contract Editor Section */}
-            <section className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit & Deploy Contract</h2>
-              <ContractEditor onCodeChange={setCode} />
-              <div className="flex items-center gap-4">
-                <DeployButton
-                  code={code}
-                  onDeployStart={handleDeployStart}
-                  onDeploySuccess={handleDeploySuccess}
-                  onDeployError={handleDeployError}
+        {activeMainTab === 'contract' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Editor and Deploy */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Contract Editor Section */}
+              <section className="space-y-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit & Deploy Contract</h2>
+                <ContractEditor onCodeChange={setCode} />
+                <div className="flex items-center gap-4">
+                  <DeployButton
+                    code={code}
+                    onDeployStart={handleDeployStart}
+                    onDeploySuccess={handleDeploySuccess}
+                    onDeployError={handleDeployError}
+                  />
+                </div>
+                <DeploymentStatus
+                  status={deploymentStatus}
+                  address={deploymentResult?.address}
+                  transactionHash={deploymentResult?.transactionHash}
+                  error={deploymentError}
+                />
+              </section>
+
+              {/* View Functions Section */}
+              {contractAddress && (
+                <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <ViewFunctionDisplay
+                    contractAddress={contractAddress}
+                    contractAbi={contractAbi}
+                  />
+                </section>
+              )}
+
+              {/* Contract Interaction Section */}
+              {contractAddress && (
+                <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Write Functions</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Execute state-changing functions on the contract. All transactions are recorded and queryable via Amp.
+                  </p>
+                  <DynamicFunctionButtons
+                    contractAddress={contractAddress}
+                    contractAbi={contractAbi}
+                  />
+                </section>
+              )}
+
+              {/* Function Transactions Section */}
+              {contractAddress && (
+                <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Function Transactions</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    View transaction history for each function, indexed and queryable via Amp.
+                  </p>
+                  <DynamicFunctionTables
+                    contractAddress={contractAddress}
+                    contractAbi={contractAbi}
+                    functionEventMapping={functionEventMapping}
+                  />
+                </section>
+              )}
+
+              {/* Logs and Transactions Section */}
+              <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Logs & Transactions</h2>
+                <LogsAndTransactionsTabs />
+              </section>
+            </div>
+
+            {/* Right Column - Deployment History */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-6">
+                <DeploymentSelector
+                  activeDeploymentId={activeDeploymentId}
+                  onSelectDeployment={handleSelectDeployment}
                 />
               </div>
-              <DeploymentStatus
-                status={deploymentStatus}
-                address={deploymentResult?.address}
-                transactionHash={deploymentResult?.transactionHash}
-                error={deploymentError}
-              />
-            </section>
-
-            {/* View Functions Section */}
-            {contractAddress && (
-              <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <ViewFunctionDisplay
-                  contractAddress={contractAddress}
-                  contractAbi={contractAbi}
-                />
-              </section>
-            )}
-
-            {/* Contract Interaction Section */}
-            {contractAddress && (
-              <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Write Functions</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Execute state-changing functions on the contract. All transactions are recorded and queryable via Amp.
-                </p>
-                <DynamicFunctionButtons
-                  contractAddress={contractAddress}
-                  contractAbi={contractAbi}
-                />
-              </section>
-            )}
-
-            {/* Function Transactions Section */}
-            {contractAddress && (
-              <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Function Transactions</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  View transaction history for each function, indexed and queryable via Amp.
-                </p>
-                <DynamicFunctionTables
-                  contractAddress={contractAddress}
-                  contractAbi={contractAbi}
-                  functionEventMapping={functionEventMapping}
-                />
-              </section>
-            )}
-
-            {/* Logs and Transactions Section */}
-            <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Logs & Transactions</h2>
-              <LogsAndTransactionsTabs />
-            </section>
-          </div>
-
-          {/* Right Column - Deployment History */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-6">
-              <DeploymentSelector
-                activeDeploymentId={activeDeploymentId}
-                onSelectDeployment={handleSelectDeployment}
-              />
             </div>
           </div>
-        </div>
+        )}
+
+        {activeMainTab === 'sql' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">SQL Query Interface</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Write custom SQL queries to explore event logs and transaction data from your deployed contracts.
+                </p>
+              </div>
+            </div>
+            <SQLQueryInterface contractAddress={contractAddress} />
+          </div>
+        )}
       </main>
     </div>
   );
