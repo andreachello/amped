@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { javascript } from '@codemirror/lang-javascript'
 
@@ -34,6 +34,11 @@ interface ContractEditorProps {
 
 export function ContractEditor({ onCodeChange, initialCode }: ContractEditorProps) {
   const [code, setCode] = useState(initialCode || DEFAULT_CONTRACT)
+
+  // Initialize parent state with default code on mount
+  useEffect(() => {
+    onCodeChange(code)
+  }, [])
 
   const handleChange = (value: string) => {
     setCode(value)

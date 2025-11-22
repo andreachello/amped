@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { Address } from "viem";
 import { performAmpQuery } from "../lib/runtime.ts";
 
 type Increment = {
@@ -9,9 +10,13 @@ type Increment = {
   count: string;
 };
 
-export function IncrementTable() {
+interface IncrementTableProps {
+  contractAddress?: Address;
+}
+
+export function IncrementTable({ contractAddress }: IncrementTableProps) {
   const { data } = useQuery({
-    queryKey: ["Amp", "Demo", { table: "increments" }] as const,
+    queryKey: ["Amp", "Demo", { table: "increments", address: contractAddress }] as const,
     async queryFn() {
       /**
        * This query hits your deployed dataset from running `pnpm amp dev`.
@@ -22,6 +27,8 @@ export function IncrementTable() {
        * - `incremented` -> the table named derived from your contract abis
        * => the end result: "eth_global/conter@dev".incremented queries the incremented table on your dataset
        */
+      // Note: For local Anvil, we query all events. The address filtering can be added
+      // when the Amp dataset schema includes the contract address column.
       return await performAmpQuery<Increment>(
         `SELECT block_num, timestamp, count FROM "eth_global/counter@dev".incremented ORDER BY block_num DESC`
       );
@@ -64,8 +71,8 @@ export function IncrementTable() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                {(data ?? []).map((increment) => (
-                  <tr key={increment.timestamp}>
+                {(data ?? []).map((increment, index) => (
+                  <tr key={`${increment.block_num}-${increment.timestamp}-${index}`}>
                     <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">
                       {increment.block_num}
                     </td>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import type { Address } from "viem";
 import { performAmpQuery } from "../lib/runtime.ts";
 
 type Decrement = {
@@ -9,9 +10,13 @@ type Decrement = {
   count: string;
 };
 
-export function DecrementTable() {
+interface DecrementTableProps {
+  contractAddress?: Address;
+}
+
+export function DecrementTable({ contractAddress }: DecrementTableProps) {
   const { data } = useQuery({
-    queryKey: ["Amp", "Demo", { table: "decrements" }] as const,
+    queryKey: ["Amp", "Demo", { table: "decrements", address: contractAddress }] as const,
     async queryFn() {
       /**
        * This query hits your deployed dataset from running `pnpm amp dev`.
@@ -22,6 +27,8 @@ export function DecrementTable() {
        * - `decremented` -> the table named derived from your contract abis
        * => the end result: "eth_global/conter@dev".decremented queries the decremented table on your dataset
        */
+      // Note: For local Anvil, we query all events. The address filtering can be added
+      // when the Amp dataset schema includes the contract address column.
       return await performAmpQuery<Decrement>(
         `SELECT block_num, timestamp, count FROM "eth_global/counter@dev".decremented ORDER BY block_num DESC`
       );
@@ -64,8 +71,8 @@ export function DecrementTable() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                {(data ?? []).map((decrement) => (
-                  <tr key={decrement.timestamp}>
+                {(data ?? []).map((decrement, index) => (
+                  <tr key={`${decrement.block_num}-${decrement.timestamp}-${index}`}>
                     <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">
                       {decrement.block_num}
                     </td>

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { privateKeyToAccount } from "viem/accounts";
 import { useWriteContract } from "wagmi";
-import { abi } from "../lib/abi.ts";
+import type { Abi, Address } from "viem";
+import { abi as defaultAbi } from "../lib/abi.ts";
 import { wagmiConfig } from "../lib/config.ts";
-import { address as contractAddress } from "../lib/viem.ts";
+import { address as defaultContractAddress } from "../lib/viem.ts";
 import { DecrementTable } from "./DecrementTable.tsx";
 import { IncrementTable } from "./IncrementTable.tsx";
 import { LogsTable } from "./LogsTable.tsx";
@@ -27,10 +28,15 @@ const address = account.address;
 type DeployStatus = 'idle' | 'deploying' | 'success' | 'error'
 
 export function App() {
+  const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const [deploymentStatus, setDeploymentStatus] = useState<DeployStatus>('idle')
   const [deploymentResult, setDeploymentResult] = useState<any>(null)
   const [deploymentError, setDeploymentError] = useState<string>('')
+
+  // Dynamic contract state
+  const [contractAddress, setContractAddress] = useState<Address>(defaultContractAddress)
+  const [contractAbi, setContractAbi] = useState<Abi>(defaultAbi)
 
   const handleDeployStart = () => {
     setDeploymentStatus('deploying')
@@ -40,10 +46,19 @@ export function App() {
   const handleDeploySuccess = (result: any) => {
     setDeploymentStatus('success')
     setDeploymentResult(result)
-    // Trigger page reload after 2 seconds to pick up new contract
+
+    // Update contract address and ABI dynamically
+    if (result.address) {
+      setContractAddress(result.address as Address)
+    }
+    if (result.abi) {
+      setContractAbi(result.abi as Abi)
+    }
+
+    // Invalidate all queries to refresh data with new contract
     setTimeout(() => {
-      window.location.reload()
-    }, 2000)
+      queryClient.invalidateQueries()
+    }, 1_000)
   }
 
   const handleDeployError = (error: string) => {
@@ -97,12 +112,12 @@ export function App() {
             transactions and logs queried using Amp!
           </p>
           <div className="flex items-center gap-x-2">
-            <IncrementCTA />
-            <DecrementCTA />
+            <IncrementCTA contractAddress={contractAddress} contractAbi={contractAbi} />
+            <DecrementCTA contractAddress={contractAddress} contractAbi={contractAbi} />
           </div>
           <div className="w-full grid grid-cols-2 gap-x-2">
-            <IncrementTable />
-            <DecrementTable />
+            <IncrementTable contractAddress={contractAddress} />
+            <DecrementTable contractAddress={contractAddress} />
           </div>
         </section>
 
@@ -116,7 +131,12 @@ export function App() {
   );
 }
 
-function IncrementCTA() {
+interface CTAProps {
+  contractAddress: Address
+  contractAbi: Abi
+}
+
+function IncrementCTA({ contractAddress, contractAbi }: CTAProps) {
   const queryClient = useQueryClient();
   const { writeContract, status } = useWriteContract({
     config: wagmiConfig,
@@ -130,7 +150,7 @@ function IncrementCTA() {
       onClick={() =>
         writeContract(
           {
-            abi,
+            abi: contractAbi,
             address: contractAddress,
             functionName: "increment",
             account,
@@ -153,7 +173,7 @@ function IncrementCTA() {
   );
 }
 
-function DecrementCTA() {
+function DecrementCTA({ contractAddress, contractAbi }: CTAProps) {
   const queryClient = useQueryClient();
   const { writeContract, status } = useWriteContract({
     config: wagmiConfig,
@@ -167,7 +187,7 @@ function DecrementCTA() {
       onClick={() =>
         writeContract(
           {
-            abi,
+            abi: contractAbi,
             address: contractAddress,
             functionName: "decrement",
             account,
