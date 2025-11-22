@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
-import { performAmpQuery } from "../lib/runtime.ts";
+import { performAmpQuery, EVENTS_DATASET } from "../lib/runtime.ts";
 
 type Increment = {
   block_num: string;
@@ -36,7 +36,7 @@ export function IncrementTable({ contractAddress }: IncrementTableProps) {
       // when the Amp dataset schema includes the contract address column.
       const offset = page * ITEMS_PER_PAGE;
       return await performAmpQuery<Increment>(
-        `SELECT block_num, timestamp, count FROM "eth_global/counter@dev".incremented ORDER BY block_num DESC LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}`
+        `SELECT block_num, timestamp, count FROM "${EVENTS_DATASET}".incremented ORDER BY block_num DESC LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}`
       );
     },
   });

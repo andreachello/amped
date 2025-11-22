@@ -1,20 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { privateKeyToAccount } from "viem/accounts";
-import { useWriteContract } from "wagmi";
 import type { Abi, Address } from "viem";
 import { abi as defaultAbi } from "../lib/abi.ts";
-import { wagmiConfig } from "../lib/config.ts";
 import { address as defaultContractAddress } from "../lib/viem.ts";
-import { DecrementTable } from "./DecrementTable.tsx";
-import { IncrementTable } from "./IncrementTable.tsx";
-import { LogsTable } from "./LogsTable.tsx";
-import { TransactionsTable } from "./TransactionsTable.tsx";
 import { ContractEditor } from "./ContractEditor.tsx";
 import { DeployButton } from "./DeployButton.tsx";
 import { DeploymentStatus } from "./DeploymentStatus.tsx";
+import { DynamicFunctionButtons } from "./DynamicFunctionButtons.tsx";
+import { ViewFunctionDisplay } from "./ViewFunctionDisplay.tsx";
+import { DynamicEventTables } from "./DynamicEventTables.tsx";
+import { DeploymentSelector } from "./DeploymentSelector.tsx";
+import { LogsTable } from "./LogsTable.tsx";
+import { TransactionsTable } from "./TransactionsTable.tsx";
+import {
+  addDeployment,
+  loadDeployments,
+  type DeploymentRecord,
+} from "../lib/deploymentHistory.ts";
+import { privateKeyToAccount } from "viem/accounts";
 
 /**
  * This is one of the private keys created by anvil and is available to perform transactions for.
@@ -38,6 +43,21 @@ export function App() {
   const [contractAddress, setContractAddress] = useState<Address>(defaultContractAddress)
   const [contractAbi, setContractAbi] = useState<Abi>(defaultAbi)
 
+  // Deployment history state
+  const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null)
+
+  // Load deployment history on mount
+  useEffect(() => {
+    const deployments = loadDeployments()
+    if (deployments.length > 0) {
+      // Use the most recent deployment as active
+      const latest = deployments[deployments.length - 1]
+      setActiveDeploymentId(latest.id)
+      setContractAddress(latest.address)
+      setContractAbi(latest.abi)
+    }
+  }, [])
+
   const handleDeployStart = () => {
     setDeploymentStatus('deploying')
     setDeploymentError('')
@@ -47,12 +67,17 @@ export function App() {
     setDeploymentStatus('success')
     setDeploymentResult(result)
 
-    // Update contract address and ABI dynamically
-    if (result.address) {
-      setContractAddress(result.address as Address)
-    }
-    if (result.abi) {
-      setContractAbi(result.abi as Abi)
+    // Save to deployment history
+    if (result.address && result.abi) {
+      const deployment = addDeployment(
+        result.address as Address,
+        result.abi as Abi,
+        result.transactionHash || '',
+        `Contract ${new Date().toLocaleTimeString()}`
+      )
+      setActiveDeploymentId(deployment.id)
+      setContractAddress(deployment.address)
+      setContractAbi(deployment.abi)
     }
 
     // Invalidate all queries to refresh data with new contract
@@ -66,13 +91,24 @@ export function App() {
     setDeploymentError(error)
   }
 
+  const handleSelectDeployment = (deployment: DeploymentRecord) => {
+    setActiveDeploymentId(deployment.id)
+    setContractAddress(deployment.address)
+    setContractAbi(deployment.abi)
+
+    // Refresh queries with the selected deployment
+    setTimeout(() => {
+      queryClient.invalidateQueries()
+    }, 100)
+  }
+
   return (
     <div className="min-h-full">
       <div className="border-b border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 justify-between">
             <div className="flex">
-              <div className="flex shrink-0 items-center">Amp Demo - Contract Editor</div>
+              <div className="flex shrink-0 items-center">Amp Demo - Dynamic Contract Editor</div>
             </div>
             <div className="w-fit flex items-center">
               {`${address.substring(0, 6)}...${address.substring(
@@ -84,128 +120,86 @@ export function App() {
         </div>
       </div>
       <main className="w-full flex flex-col gap-y-6 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-        {/* Contract Editor Section */}
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Edit & Deploy Contract</h2>
-          <ContractEditor onCodeChange={setCode} />
-          <div className="flex items-center gap-4">
-            <DeployButton
-              code={code}
-              onDeployStart={handleDeployStart}
-              onDeploySuccess={handleDeploySuccess}
-              onDeployError={handleDeployError}
-            />
-          </div>
-          <DeploymentStatus
-            status={deploymentStatus}
-            address={deploymentResult?.address}
-            transactionHash={deploymentResult?.transactionHash}
-            error={deploymentError}
-          />
-        </section>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Editor and Deploy */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Contract Editor Section */}
+            <section className="space-y-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit & Deploy Contract</h2>
+              <ContractEditor onCodeChange={setCode} />
+              <div className="flex items-center gap-4">
+                <DeployButton
+                  code={code}
+                  onDeployStart={handleDeployStart}
+                  onDeploySuccess={handleDeploySuccess}
+                  onDeployError={handleDeployError}
+                />
+              </div>
+              <DeploymentStatus
+                status={deploymentStatus}
+                address={deploymentResult?.address}
+                transactionHash={deploymentResult?.transactionHash}
+                error={deploymentError}
+              />
+            </section>
 
-        {/* Contract Interaction Section */}
-        <section className="space-y-4 pt-6 border-t">
-          <h2 className="text-xl font-semibold">Interact with Contract</h2>
-          <p className="w-full text-sm">
-            Increment and decrement the counter using the buttons. See the anvil
-            transactions and logs queried using Amp!
-          </p>
-          <div className="flex items-center gap-x-2">
-            <IncrementCTA contractAddress={contractAddress} contractAbi={contractAbi} />
-            <DecrementCTA contractAddress={contractAddress} contractAbi={contractAbi} />
-          </div>
-          <div className="w-full grid grid-cols-2 gap-x-2">
-            <IncrementTable contractAddress={contractAddress} />
-            <DecrementTable contractAddress={contractAddress} />
-          </div>
-        </section>
+            {/* View Functions Section */}
+            {contractAddress && (
+              <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <ViewFunctionDisplay
+                  contractAddress={contractAddress}
+                  contractAbi={contractAbi}
+                />
+              </section>
+            )}
 
-        {/* Logs Section */}
-        <section className="space-y-4">
-          <LogsTable />
-          <TransactionsTable />
-        </section>
+            {/* Contract Interaction Section */}
+            {contractAddress && (
+              <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Write Functions</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Execute state-changing functions on the contract. All transactions are recorded and queryable via Amp.
+                </p>
+                <DynamicFunctionButtons
+                  contractAddress={contractAddress}
+                  contractAbi={contractAbi}
+                />
+              </section>
+            )}
+
+            {/* Events Section */}
+            {contractAddress && (
+              <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Contract Events</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  View all events emitted by this contract, indexed and queryable via Amp.
+                </p>
+                <DynamicEventTables
+                  contractAddress={contractAddress}
+                  contractAbi={contractAbi}
+                />
+              </section>
+            )}
+
+            {/* Logs and Transactions Section */}
+            <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Logs & Transactions</h2>
+              <LogsTable />
+              <TransactionsTable />
+            </section>
+          </div>
+
+          {/* Right Column - Deployment History */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-6">
+              <DeploymentSelector
+                activeDeploymentId={activeDeploymentId}
+                onSelectDeployment={handleSelectDeployment}
+              />
+            </div>
+          </div>
+        </div>
       </main>
     </div>
-  );
-}
-
-interface CTAProps {
-  contractAddress: Address
-  contractAbi: Abi
-}
-
-function IncrementCTA({ contractAddress, contractAbi }: CTAProps) {
-  const queryClient = useQueryClient();
-  const { writeContract, status } = useWriteContract({
-    config: wagmiConfig,
-  });
-
-  return (
-    <button
-      type="button"
-      className="rounded-md bg-indigo-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:bg-indigo-500 dark:shadow-none dark:hover:bg-indigo-400 dark:focus-visible:outline-indigo-500 cursor-pointer  disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-      disabled={status === "pending"}
-      onClick={() =>
-        writeContract(
-          {
-            abi: contractAbi,
-            address: contractAddress,
-            functionName: "increment",
-            account,
-          },
-          {
-            onSuccess() {
-              // clear the increment query key on event to refresh the data
-              setTimeout(() => {
-                void queryClient.refetchQueries({
-                  queryKey: ["Amp", "Demo", { table: "increments" }] as const,
-                });
-              }, 1_000);
-            },
-          }
-        )
-      }
-    >
-      Increment
-    </button>
-  );
-}
-
-function DecrementCTA({ contractAddress, contractAbi }: CTAProps) {
-  const queryClient = useQueryClient();
-  const { writeContract, status } = useWriteContract({
-    config: wagmiConfig,
-  });
-
-  return (
-    <button
-      type="button"
-      className="rounded-md bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-600 shadow-xs hover:bg-indigo-100 dark:bg-indigo-500/20 dark:text-indigo-400 dark:shadow-none dark:hover:bg-indigo-500/30 cursor-pointer disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
-      disabled={status === "pending"}
-      onClick={() =>
-        writeContract(
-          {
-            abi: contractAbi,
-            address: contractAddress,
-            functionName: "decrement",
-            account,
-          },
-          {
-            onSuccess() {
-              // clear the increment query key on event to refresh the data
-              setTimeout(() => {
-                void queryClient.refetchQueries({
-                  queryKey: ["Amp", "Demo", { table: "decrements" }] as const,
-                });
-              }, 1_000);
-            },
-          }
-        )
-      }
-    >
-      Decrement
-    </button>
   );
 }

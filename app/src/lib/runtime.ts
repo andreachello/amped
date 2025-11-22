@@ -39,3 +39,6 @@ export async function performAmpQuery<T = any>(
 
 export const RPC_SOURCE =
   import.meta.env.VITE_AMP_RPC_DATASET || "_/anvil@0.0.1";
+
+export const EVENTS_DATASET =
+  import.meta.env.VITE_AMP_EVENTS_DATASET || "eth_global/counter@dev";
