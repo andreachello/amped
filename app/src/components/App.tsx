@@ -97,9 +97,15 @@ export function App() {
       setFunctionEventMapping(mapping)
     }
 
-    // Invalidate all queries to refresh data with new contract
+    // Only invalidate view functions (read-only state)
+    // Don't invalidate event queries - they'll load on demand when tabs are clicked
     setTimeout(() => {
-      queryClient.invalidateQueries()
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) &&
+          query.queryKey[0] === 'contract' &&
+          query.queryKey[1] === 'read'
+      })
     }, 1_000)
   }
 

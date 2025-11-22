@@ -76,7 +76,13 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
   // Get the events this function emits
   const eventNames = functionEventMapping?.[func.name] || []
 
-  // If no mapping, try to infer from name similarity
+  console.log(`🎯 [DynamicFunctionTables] ${func.name}():`, {
+    mappedEvents: eventNames,
+    hasMappingFromParser: eventNames.length > 0,
+    allAvailableEvents: allEvents.map(e => e.name)
+  })
+
+  // If no mapping, try to infer from name similarity (legacy fallback)
   const inferredEvents = eventNames.length === 0
     ? allEvents.filter(event => {
         const funcStem = func.name.toLowerCase().replace(/^(increment|decrement|set|add|remove|update).*/, '$1')
@@ -88,7 +94,13 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
   // Use the first matched event for querying
   const primaryEvent = inferredEvents[0]
 
-  const { data, isLoading, error } = useQuery({
+  if (primaryEvent) {
+    console.log(`  ✅ Using event: ${primaryEvent.name}`)
+  } else {
+    console.log(`  ❌ No event matched for ${func.name}()`)
+  }
+
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['Amp', 'Events', { function: func.name, address: contractAddress, page }] as const,
     async queryFn() {
       if (!primaryEvent) {
@@ -111,12 +123,18 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
           LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}`
 
         return await performAmpQuery<Record<string, any>>(query)
-      } catch (error) {
-        console.error(`Failed to query ${func.name} transactions:`, error)
+      } catch (error: any) {
+        // Table doesn't exist yet - this is normal for new contracts/functions
+        // Just return empty array instead of throwing
+        console.log(`No data for ${func.name}() yet - table may not exist until function is called`)
         return []
       }
     },
     enabled: !!primaryEvent, // Only run query if we found an event
+    retry: false, // Don't retry if table doesn't exist
+    throwOnError: false, // Don't throw errors to error boundary
+    staleTime: 5000, // Consider data stale after 5 seconds
+    gcTime: 10000, // Garbage collect after 10 seconds
   })
 
   const results = data ?? []
@@ -165,12 +183,14 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
           <div className="inline-block min-w-full py-2 align-middle">
             {isLoading ? (
               <div className="text-sm text-gray-500 py-4">Loading transactions...</div>
-            ) : error ? (
-              <div className="text-sm text-red-600 py-4">
-                Failed to load transactions. Table may not exist yet.
+            ) : isError ? (
+              <div className="text-sm text-gray-500 py-4">
+                No {func.name}() transactions yet. Call this function to see transactions appear here.
               </div>
             ) : results.length === 0 ? (
-              <div className="text-sm text-gray-500 py-4">No {func.name}() transactions yet.</div>
+              <div className="text-sm text-gray-500 py-4">
+                No {func.name}() transactions yet. Call this function to see transactions appear here.
+              </div>
             ) : (
               <>
                 <table className="relative min-w-full divide-y divide-gray-300 dark:divide-white/15">

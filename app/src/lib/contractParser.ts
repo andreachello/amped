@@ -52,19 +52,42 @@ export function inferFunctionEventMapping(
 ): FunctionEventMapping {
   const mapping: FunctionEventMapping = {}
 
+  // Expanded list of common function verb prefixes
+  const commonVerbs = [
+    'increment', 'decrement', 'set', 'get', 'add', 'remove', 'update', 'delete',
+    'create', 'mint', 'burn', 'transfer', 'approve', 'withdraw', 'deposit',
+    'ret', 'return', 'fetch', 'retrieve', 'call', 'execute', 'send', 'receive',
+    'claim', 'stake', 'unstake', 'swap', 'buy', 'sell', 'pay', 'refund'
+  ]
+
   functionNames.forEach((funcName) => {
-    // Convert function name to stem (e.g., incrementME → increment)
-    const funcStem = funcName
-      .toLowerCase()
-      .replace(/^(increment|decrement|set|get|add|remove|update|delete|create|mint|burn|transfer|approve|withdraw|deposit).*/, '$1')
+    // Convert function name to stem (e.g., incrementME → increment, retFunc → ret)
+    const funcLower = funcName.toLowerCase()
+    const verbPattern = new RegExp(`^(${commonVerbs.join('|')}).*`, 'i')
+    const funcStem = funcLower.replace(verbPattern, '$1')
 
-    // Find events with similar stems
+    // Find events with similar stems - multiple strategies
     const matchedEvents = eventNames.filter((eventName) => {
-      const eventStem = eventName
-        .toLowerCase()
-        .replace(/(ed|d)$/, '') // Remove past tense suffixes
+      const eventLower = eventName.toLowerCase()
+      const eventStem = eventLower.replace(/(ed|d)$/, '') // Remove past tense suffixes
 
-      return funcStem === eventStem || eventName.toLowerCase().includes(funcStem)
+      // Strategy 1: Exact stem match
+      if (funcStem === eventStem) return true
+
+      // Strategy 2: Event name contains function stem
+      if (eventLower.includes(funcStem)) return true
+
+      // Strategy 3: Function stem contains event stem (for short names)
+      if (funcStem.includes(eventStem) && eventStem.length >= 3) return true
+
+      // Strategy 4: Levenshtein-like simple similarity for short names
+      if (funcStem.length <= 5 && eventStem.length <= 5) {
+        // Check if stems share at least 60% of characters
+        const commonChars = funcStem.split('').filter(c => eventStem.includes(c)).length
+        return commonChars / Math.max(funcStem.length, eventStem.length) >= 0.6
+      }
+
+      return false
     })
 
     if (matchedEvents.length > 0) {
@@ -84,8 +107,13 @@ export function getContractFunctionEventMapping(
   functionNames: string[],
   eventNames: string[]
 ): FunctionEventMapping {
+  console.log('🔍 [contractParser] Attempting to map functions to events...')
+  console.log('  Functions:', functionNames)
+  console.log('  Events:', eventNames)
+
   // Try parsing the source code first
   const parsedMapping = parseContractEventMappings(solidityCode)
+  console.log('  📝 Source code parsing result:', parsedMapping)
 
   // If we got mappings for all functions, use them
   const allFunctionsMapped = functionNames.every(
@@ -93,11 +121,14 @@ export function getContractFunctionEventMapping(
   )
 
   if (allFunctionsMapped) {
+    console.log('  ✅ All functions mapped via source parsing!')
     return parsedMapping
   }
 
   // Otherwise, fall back to inference and merge with parsed results
+  console.log('  ⚠️ Not all functions mapped, falling back to inference...')
   const inferredMapping = inferFunctionEventMapping(functionNames, eventNames)
+  console.log('  🔮 Inference result:', inferredMapping)
 
   // Merge: prefer parsed mappings, use inferred as fallback
   const mergedMapping: FunctionEventMapping = { ...inferredMapping }
@@ -107,5 +138,6 @@ export function getContractFunctionEventMapping(
     }
   })
 
+  console.log('  📊 Final merged mapping:', mergedMapping)
   return mergedMapping
 }

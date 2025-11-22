@@ -20,21 +20,38 @@ export const ampClient = createClient(transport);
 /**
  * Performs the given query with the AmpClient instance.
  * Waits for all batches to complete/resolve before returning.
+ * Includes a 5-second timeout to prevent hanging on non-existent tables.
  * @param query the query to run
  * @returns an array of the results from all resolved batches
  */
 export async function performAmpQuery<T = any>(
   query: string
 ): Promise<Array<T>> {
-  return await new Promise<Array<T>>(async (resolve) => {
-    const data: Array<T> = [];
+  const QUERY_TIMEOUT = 5000; // 5 seconds
 
-    for await (const batch of ampClient.query(query)) {
-      data.push(...batch);
-    }
+  return await Promise.race([
+    // The actual query
+    new Promise<Array<T>>(async (resolve, reject) => {
+      try {
+        const data: Array<T> = [];
 
-    resolve(data);
-  });
+        for await (const batch of ampClient.query(query)) {
+          data.push(...batch);
+        }
+
+        resolve(data);
+      } catch (error) {
+        // Reject the promise so callers can handle the error
+        reject(error);
+      }
+    }),
+    // Timeout promise
+    new Promise<Array<T>>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Query timeout after ${QUERY_TIMEOUT}ms - table may not exist yet`));
+      }, QUERY_TIMEOUT);
+    }),
+  ]);
 }
 
 export const RPC_SOURCE =

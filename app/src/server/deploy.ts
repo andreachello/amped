@@ -83,12 +83,50 @@ export async function deployContract(solidityCode: string): Promise<DeploymentRe
     const transactionHash = broadcastData.transactions?.[1]?.hash ||
                            broadcastData.transactions?.[0]?.hash
 
+    // Step 8: Rebuild Amp dataset with updated ABI
+    // This creates typed tables for all events (including new ones)
+    console.log('📊 Rebuilding Amp dataset with updated ABI...')
+    let ampOutput = ''
+    try {
+      // Build new manifest with updated ABI
+      const buildAmpOutput = execSync('pnpm amp build -o /tmp/amp-counter-manifest.json', {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 30000,
+      })
+      console.log('✅ Amp manifest built')
+      ampOutput += buildAmpOutput
+
+      // Register the updated manifest
+      const registerOutput = execSync('pnpm ampctl dataset register eth_global/counter /tmp/amp-counter-manifest.json', {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 15000,
+      })
+      console.log('✅ Amp dataset registered')
+      ampOutput += '\n' + registerOutput
+
+      // Deploy the updated dataset (creates new tables)
+      const deployAmpOutput = execSync('pnpm ampctl dataset deploy eth_global/counter@dev', {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 30000,
+      })
+      console.log('✅ Amp dataset deployed - new event tables created')
+      ampOutput += '\n' + deployAmpOutput
+    } catch (ampError: any) {
+      console.warn('⚠️  Failed to update Amp dataset:', ampError.message)
+      // Don't fail the deployment if Amp update fails
+      // The contract deployment itself was successful
+      ampOutput += '\n' + (ampError.stderr || ampError.message)
+    }
+
     return {
       success: true,
       address,
       abi,
       transactionHash,
-      logs: `${buildOutput}\n\n${deployOutput}`,
+      logs: `${buildOutput}\n\n${deployOutput}\n\n${ampOutput}`,
     }
   } catch (error: any) {
     // Restore backup on failure
