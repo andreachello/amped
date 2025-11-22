@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express'
 import cors from 'cors'
 import { deployContract } from './deploy.js'
-import { performAmpQuery } from '../lib/runtime.js'
+import { performAmpQuery } from './ampClient.js'
 
 const app = express()
 const PORT = 3001
