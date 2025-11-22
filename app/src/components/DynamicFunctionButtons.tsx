@@ -35,7 +35,7 @@ export function DynamicFunctionButtons({ contractAddress, contractAbi }: Props) 
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-row flex-wrap gap-3">
       {writeFunctions.map((func) => (
         <FunctionButton
           key={func.name}
