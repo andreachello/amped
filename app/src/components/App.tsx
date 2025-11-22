@@ -10,15 +10,16 @@ import { DeployButton } from "./DeployButton.tsx";
 import { DeploymentStatus } from "./DeploymentStatus.tsx";
 import { DynamicFunctionButtons } from "./DynamicFunctionButtons.tsx";
 import { ViewFunctionDisplay } from "./ViewFunctionDisplay.tsx";
-import { DynamicEventTables } from "./DynamicEventTables.tsx";
+import { DynamicFunctionTables } from "./DynamicFunctionTables.tsx";
 import { DeploymentSelector } from "./DeploymentSelector.tsx";
-import { LogsTable } from "./LogsTable.tsx";
-import { TransactionsTable } from "./TransactionsTable.tsx";
+import { LogsAndTransactionsTabs } from "./LogsAndTransactionsTabs.tsx";
 import {
   addDeployment,
   loadDeployments,
   type DeploymentRecord,
 } from "../lib/deploymentHistory.ts";
+import { getContractFunctionEventMapping, type FunctionEventMapping } from "../lib/contractParser.ts";
+import { categorizeAbi } from "../lib/abiHelpers.ts";
 import { privateKeyToAccount } from "viem/accounts";
 
 /**
@@ -42,6 +43,7 @@ export function App() {
   // Dynamic contract state
   const [contractAddress, setContractAddress] = useState<Address>(defaultContractAddress)
   const [contractAbi, setContractAbi] = useState<Abi>(defaultAbi)
+  const [functionEventMapping, setFunctionEventMapping] = useState<FunctionEventMapping | undefined>()
 
   // Deployment history state
   const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null)
@@ -55,6 +57,7 @@ export function App() {
       setActiveDeploymentId(latest.id)
       setContractAddress(latest.address)
       setContractAbi(latest.abi)
+      setFunctionEventMapping(latest.functionEventMapping)
     }
   }, [])
 
@@ -69,15 +72,29 @@ export function App() {
 
     // Save to deployment history
     if (result.address && result.abi) {
+      // Parse contract to get function-event mappings
+      const { writeFunctions, events } = categorizeAbi(result.abi as Abi)
+      const functionNames = writeFunctions.map(f => f.name)
+      const eventNames = events.map((e: any) => e.name)
+
+      const mapping = getContractFunctionEventMapping(
+        code, // Current contract source code
+        functionNames,
+        eventNames
+      )
+
       const deployment = addDeployment(
         result.address as Address,
         result.abi as Abi,
         result.transactionHash || '',
-        `Contract ${new Date().toLocaleTimeString()}`
+        `Contract ${new Date().toLocaleTimeString()}`,
+        code, // Store source code
+        mapping // Store function-event mapping
       )
       setActiveDeploymentId(deployment.id)
       setContractAddress(deployment.address)
       setContractAbi(deployment.abi)
+      setFunctionEventMapping(mapping)
     }
 
     // Invalidate all queries to refresh data with new contract
@@ -95,6 +112,7 @@ export function App() {
     setActiveDeploymentId(deployment.id)
     setContractAddress(deployment.address)
     setContractAbi(deployment.abi)
+    setFunctionEventMapping(deployment.functionEventMapping)
 
     // Refresh queries with the selected deployment
     setTimeout(() => {
@@ -167,16 +185,17 @@ export function App() {
               </section>
             )}
 
-            {/* Events Section */}
+            {/* Function Transactions Section */}
             {contractAddress && (
               <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Contract Events</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Function Transactions</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  View all events emitted by this contract, indexed and queryable via Amp.
+                  View transaction history for each function, indexed and queryable via Amp.
                 </p>
-                <DynamicEventTables
+                <DynamicFunctionTables
                   contractAddress={contractAddress}
                   contractAbi={contractAbi}
+                  functionEventMapping={functionEventMapping}
                 />
               </section>
             )}
@@ -184,8 +203,7 @@ export function App() {
             {/* Logs and Transactions Section */}
             <section className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Logs & Transactions</h2>
-              <LogsTable />
-              <TransactionsTable />
+              <LogsAndTransactionsTabs />
             </section>
           </div>
 

@@ -3,7 +3,7 @@ import { type Address, getAddress } from "viem";
 interface Transaction {
   hash: string;
   transactionType: string;
-  contractName: string;
+  contractName: string | null;
   contractAddress: string;
   additionalContracts?: Array<AdditionalContract>;
 }

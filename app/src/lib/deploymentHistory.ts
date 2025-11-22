@@ -1,4 +1,5 @@
 import type { Abi, Address } from 'viem'
+import type { FunctionEventMapping } from './contractParser'
 
 export interface DeploymentRecord {
   id: string
@@ -7,6 +8,8 @@ export interface DeploymentRecord {
   abi: Abi
   transactionHash: string
   label?: string
+  sourceCode?: string
+  functionEventMapping?: FunctionEventMapping
 }
 
 const STORAGE_KEY = 'amp-deployment-history'
@@ -45,7 +48,9 @@ export function addDeployment(
   address: Address,
   abi: Abi,
   transactionHash: string,
-  label?: string
+  label?: string,
+  sourceCode?: string,
+  functionEventMapping?: FunctionEventMapping
 ): DeploymentRecord {
   const deployment: DeploymentRecord = {
     id: `${Date.now()}-${address}`,
@@ -54,6 +59,8 @@ export function addDeployment(
     abi,
     transactionHash,
     label: label || `Contract ${new Date().toLocaleTimeString()}`,
+    sourceCode,
+    functionEventMapping,
   }
 
   const existing = loadDeployments()

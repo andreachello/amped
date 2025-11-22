@@ -80,8 +80,18 @@ function SimpleButton({ func, contractAddress, contractAbi }: FunctionButtonProp
       {
         onSuccess() {
           setTimeout(() => {
-            queryClient.invalidateQueries()
-          }, 1_000)
+            // Invalidate all event table queries
+            queryClient.invalidateQueries({
+              queryKey: ['Amp', 'Events'],
+            })
+            // Also invalidate view function queries
+            queryClient.invalidateQueries({
+              predicate: (query) =>
+                Array.isArray(query.queryKey) &&
+                query.queryKey[0] === 'contract' &&
+                query.queryKey[1] === 'read'
+            })
+          }, 1_500)
         },
       }
     )
@@ -165,10 +175,20 @@ function ParameterizedButton({ func, contractAddress, contractAbi }: FunctionBut
         {
           onSuccess() {
             setTimeout(() => {
-              queryClient.invalidateQueries()
+              // Invalidate all event table queries
+              queryClient.invalidateQueries({
+                queryKey: ['Amp', 'Events'],
+              })
+              // Also invalidate view function queries
+              queryClient.invalidateQueries({
+                predicate: (query) =>
+                  Array.isArray(query.queryKey) &&
+                  query.queryKey[0] === 'contract' &&
+                  query.queryKey[1] === 'read'
+              })
               setIsExpanded(false)
               setArgs({})
-            }, 1_000)
+            }, 1_500)
           },
         }
       )
