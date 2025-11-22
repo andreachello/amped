@@ -5,6 +5,7 @@ import type { AbiFunction } from 'abitype'
 import { performAmpQuery, EVENTS_DATASET } from '../lib/runtime'
 import { categorizeAbi } from '../lib/abiHelpers'
 import type { FunctionEventMapping } from '../lib/contractParser'
+import { createAddressFilter } from '../lib/ampHelpers'
 
 const ITEMS_PER_PAGE = 10
 
@@ -101,8 +102,11 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
 
         const offset = page * ITEMS_PER_PAGE
         const tableName = primaryEvent.name.toLowerCase()
+        const addressFilter = createAddressFilter(contractAddress)
+
         const query = `SELECT ${allColumns.join(', ')}
           FROM "${EVENTS_DATASET}".${tableName}
+          ${addressFilter}
           ORDER BY block_num DESC
           LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}`
 

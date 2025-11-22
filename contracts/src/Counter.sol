@@ -11,7 +11,7 @@ contract Counter {
         count = 0;
     }
 
-    function incrementME() public {
+    function incrementKO() public {
         count++;
         emit Incremented(count);
     }
