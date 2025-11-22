@@ -10,7 +10,8 @@ contract DeployCounter is Script {
         vm.startBroadcast();
 
         bytes memory code = abi.encodePacked(type(Counter).creationCode);
-        address counter = deploy(keccak256("Counter"), code);
+        // Use timestamp-based salt for unique addresses on each deployment
+        address counter = deploy(keccak256(abi.encodePacked("Counter", block.timestamp)), code);
 
         console.log("Counter deployed to:", counter);
 

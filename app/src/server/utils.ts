@@ -1,7 +1,5 @@
 import { getAddress } from 'viem'
 
-const DEFAULT_CONTRACT_ADDRESS = '0x6f6b8249ac2d544cb3d5cb21fffd582f8c7e9fe5'
-
 interface BroadcastTransaction {
   transactionType: string
   additionalContracts?: Array<{
@@ -22,7 +20,7 @@ export function parseDeploymentOutput(broadcastData: BroadcastFile): string {
   )
 
   if (!callTransaction || !callTransaction.additionalContracts) {
-    return DEFAULT_CONTRACT_ADDRESS
+    throw new Error('Failed to find deployment transaction in broadcast data')
   }
 
   // Find the CREATE additional contract (the actual Counter deployment)
@@ -31,7 +29,7 @@ export function parseDeploymentOutput(broadcastData: BroadcastFile): string {
   )
 
   if (!createContract) {
-    return DEFAULT_CONTRACT_ADDRESS
+    throw new Error('Failed to find CREATE contract in broadcast data')
   }
 
   return getAddress(createContract.address)
