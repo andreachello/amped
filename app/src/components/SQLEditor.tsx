@@ -56,6 +56,8 @@ export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuer
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [queryName, setQueryName] = useState('')
+  const [showExampleDropdown, setShowExampleDropdown] = useState(false)
+  const [showSavedDropdown, setShowSavedDropdown] = useState(false)
 
   // Load saved queries on mount
   useEffect(() => {
@@ -71,6 +73,7 @@ export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuer
 
   const loadExample = (example: { name: string; query: string }) => {
     onQueryChange(example.query)
+    setShowExampleDropdown(false)
   }
 
   const saveQuery = () => {
@@ -91,6 +94,7 @@ export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuer
 
   const loadSavedQuery = (saved: SavedQuery) => {
     onQueryChange(saved.query)
+    setShowSavedDropdown(false)
   }
 
   const deleteSavedQuery = (index: number) => {
@@ -99,8 +103,21 @@ export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuer
     localStorage.setItem(SAVED_QUERIES_KEY, JSON.stringify(updated))
   }
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.dropdown-container')) {
+        setShowExampleDropdown(false)
+        setShowSavedDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   return (
-    <div className="h-full flex flex-col p-3 space-y-3">
+    <div className="h-full flex flex-col p-3 space-y-3 overflow-visible">
       {/* Query Editor */}
       <div className="flex-1 flex flex-col border border-[var(--ide-border-default)] rounded-lg overflow-hidden">
         <div className="bg-gray-800 text-white px-4 py-2 text-sm font-mono flex items-center justify-between border-b border-[var(--ide-border-default)]">
@@ -146,50 +163,66 @@ export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuer
         </button>
 
         {/* Example Queries Dropdown */}
-        <div className="relative group">
-          <button className="inline-flex items-center px-4 py-2 border border-[var(--ide-border-default)] shadow-sm text-sm font-medium rounded-md text-[var(--ide-text-primary)] bg-[var(--ide-input-bg)] hover:bg-[var(--ide-hover-bg)] transition-colors">
+        <div className="relative dropdown-container">
+          <button
+            onClick={() => {
+              setShowExampleDropdown(!showExampleDropdown)
+              setShowSavedDropdown(false)
+            }}
+            className="inline-flex items-center px-4 py-2 border border-[var(--ide-border-default)] shadow-sm text-sm font-medium rounded-md text-[var(--ide-text-primary)] bg-[var(--ide-input-bg)] hover:bg-[var(--ide-hover-bg)] transition-colors"
+          >
             Example Queries ▾
           </button>
-          <div className="hidden group-hover:block absolute z-[100] mt-1 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg">
-            {EXAMPLE_QUERIES(contractAddress).map((example, idx) => (
-              <button
-                key={idx}
-                onClick={() => loadExample(example)}
-                className="block w-full text-left px-4 py-2 text-sm text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover-bg)] first:rounded-t-md last:rounded-b-md transition-colors"
-              >
-                {example.name}
-              </button>
-            ))}
-          </div>
+          {showExampleDropdown && (
+            <div className="absolute z-[100] bottom-full mb-1 left-0 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg">
+              {EXAMPLE_QUERIES(contractAddress).map((example, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => loadExample(example)}
+                  className="block w-full text-left px-4 py-2 text-sm text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover-bg)] first:rounded-t-md last:rounded-b-md transition-colors"
+                >
+                  {example.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Saved Queries Dropdown */}
         {savedQueries.length > 0 && (
-          <div className="relative group">
-            <button className="inline-flex items-center px-4 py-2 border border-[var(--ide-border-default)] shadow-sm text-sm font-medium rounded-md text-[var(--ide-text-primary)] bg-[var(--ide-input-bg)] hover:bg-[var(--ide-hover-bg)] transition-colors">
+          <div className="relative dropdown-container">
+            <button
+              onClick={() => {
+                setShowSavedDropdown(!showSavedDropdown)
+                setShowExampleDropdown(false)
+              }}
+              className="inline-flex items-center px-4 py-2 border border-[var(--ide-border-default)] shadow-sm text-sm font-medium rounded-md text-[var(--ide-text-primary)] bg-[var(--ide-input-bg)] hover:bg-[var(--ide-hover-bg)] transition-colors"
+            >
               Saved Queries ({savedQueries.length}) ▾
             </button>
-            <div className="hidden group-hover:block absolute z-[100] mt-1 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg max-h-64 overflow-y-auto">
-              {savedQueries.map((saved, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between px-4 py-2 text-sm hover:bg-[var(--ide-hover-bg)] transition-colors"
-                >
-                  <button
-                    onClick={() => loadSavedQuery(saved)}
-                    className="flex-1 text-left text-[var(--ide-text-primary)]"
+            {showSavedDropdown && (
+              <div className="absolute z-[100] bottom-full mb-1 left-0 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg max-h-64 overflow-y-auto">
+                {savedQueries.map((saved, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between px-4 py-2 text-sm hover:bg-[var(--ide-hover-bg)] transition-colors"
                   >
-                    {saved.name}
-                  </button>
-                  <button
-                    onClick={() => deleteSavedQuery(idx)}
-                    className="ml-2 text-red-400 hover:text-red-300 transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <button
+                      onClick={() => loadSavedQuery(saved)}
+                      className="flex-1 text-left text-[var(--ide-text-primary)]"
+                    >
+                      {saved.name}
+                    </button>
+                    <button
+                      onClick={() => deleteSavedQuery(idx)}
+                      className="ml-2 text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
