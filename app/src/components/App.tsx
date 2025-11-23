@@ -54,7 +54,7 @@ export function App() {
   // IDE Layout state
   const [activeSidebarView, setActiveSidebarView] = useState<ActivityView>('explorer')
   const [activeEditorTab, setActiveEditorTab] = useState('editor')
-  const [activeBottomTab, setActiveBottomTab] = useState('results')
+  const [activeBottomTab, setActiveBottomTab] = useState('events')
 
   // SQL state
   const [sqlQuery, setSqlQuery] = useState('')
@@ -139,7 +139,7 @@ export function App() {
 
     setSqlIsLoading(true)
     setSqlError(null)
-    setActiveBottomTab('results') // Switch to results tab
+    // No need to switch tabs anymore, results is the only tab when on SQL editor
 
     try {
       const response = await fetch('http://localhost:3001/api/query', {
@@ -162,6 +162,16 @@ export function App() {
       setSqlResults([])
     } finally {
       setSqlIsLoading(false)
+    }
+  }
+
+  // Handle editor tab changes - switch bottom tab appropriately
+  const handleEditorTabChange = (tabId: string) => {
+    setActiveEditorTab(tabId)
+    if (tabId === 'sql') {
+      setActiveBottomTab('results')
+    } else {
+      setActiveBottomTab('events')
     }
   }
 
@@ -207,8 +217,8 @@ export function App() {
     }
   ]
 
-  // Define bottom panel tabs
-  const bottomTabs: BottomPanelTab[] = [
+  // Define bottom panel tabs based on active editor tab
+  const bottomTabs: BottomPanelTab[] = activeEditorTab === 'sql' ? [
     {
       id: 'results',
       title: 'Query Results',
@@ -221,7 +231,8 @@ export function App() {
           />
         </div>
       )
-    },
+    }
+  ] : [
     {
       id: 'events',
       title: 'Event History',
@@ -306,7 +317,7 @@ export function App() {
         <EditorPanel
           tabs={editorTabs}
           activeTabId={activeEditorTab}
-          onTabChange={setActiveEditorTab}
+          onTabChange={handleEditorTabChange}
         />
       }
       inspectorContent={
