@@ -1,121 +1,25 @@
 import { useState, useMemo } from 'react'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
-import type { Address, Abi } from 'viem'
-import { categorizeAbi } from '../lib/abiHelpers'
 
 type ChartType = 'line' | 'bar' | 'pie' | 'area'
+type DataSource = 'sql' | 'events'
 
 interface Props {
-  contractAddress?: Address
-  contractAbi?: Abi
   sqlResults: any[]
-  isLoading: boolean
-  chartType: ChartType
-  onChartTypeChange: (type: ChartType) => void
+  eventData: any[]
 }
 
 const CHART_COLORS = ['#007acc', '#00bfff', '#1e90ff', '#4169e1', '#6495ed', '#87ceeb']
 
-const generateExampleQueries = (contractAddress?: Address, contractAbi?: Abi): Array<{
-  name: string
-  description: string
-  query: string
-  chartType: ChartType
-}> => {
-  if (!contractAbi) return []
-
-  const { events } = categorizeAbi(contractAbi)
-  if (events.length === 0) return []
-
-  const queries: Array<{
-    name: string
-    description: string
-    query: string
-    chartType: ChartType
-  }> = []
-
-  // For each event, create a time-series query
-  events.forEach((event) => {
-    const eventName = event.name.toLowerCase()
-    const tableName = `"eth_global/counter@dev".${eventName}`
-
-    // Find a numeric field to plot (first uint/int parameter)
-    const numericField = event.inputs?.find(input =>
-      input.type.startsWith('uint') || input.type.startsWith('int')
-    )
-
-    if (numericField) {
-      queries.push({
-        name: `${event.name} over time`,
-        description: `${event.name} events by block`,
-        query: contractAddress
-          ? `SELECT block_num, ${numericField.name} FROM ${tableName} WHERE address = decode('${contractAddress.toLowerCase().replace('0x', '')}', 'hex') ORDER BY block_num ASC LIMIT 50`
-          : `SELECT block_num, ${numericField.name} FROM ${tableName} ORDER BY block_num ASC LIMIT 50`,
-        chartType: 'line' as ChartType,
-      })
-    } else {
-      // If no numeric field, just count events
-      queries.push({
-        name: `${event.name} count over time`,
-        description: `${event.name} event frequency`,
-        query: contractAddress
-          ? `SELECT block_num, COUNT(*) as event_count FROM ${tableName} WHERE address = decode('${contractAddress.toLowerCase().replace('0x', '')}', 'hex') GROUP BY block_num ORDER BY block_num ASC LIMIT 50`
-          : `SELECT block_num, COUNT(*) as event_count FROM ${tableName} GROUP BY block_num ORDER BY block_num ASC LIMIT 50`,
-        chartType: 'line' as ChartType,
-      })
-    }
-  })
-
-  // Event counts comparison (bar chart)
-  if (events.length > 1) {
-    const unionQueries = events.map(event =>
-      `SELECT '${event.name}' as event_type, COUNT(*) as count FROM "eth_global/counter@dev".${event.name.toLowerCase()}`
-    ).join('\nUNION ALL\n')
-
-    queries.push({
-      name: 'Event counts by type',
-      description: 'Compare event frequencies',
-      query: unionQueries,
-      chartType: 'bar' as ChartType,
-    })
-
-    // Event distribution (pie chart)
-    queries.push({
-      name: 'Event distribution',
-      description: 'Pie chart of event types',
-      query: unionQueries,
-      chartType: 'pie' as ChartType,
-    })
-  }
-
-  // Area chart for first event with numeric field
-  const firstEventWithNumeric = events.find(event =>
-    event.inputs?.some(input => input.type.startsWith('uint') || input.type.startsWith('int'))
-  )
-
-  if (firstEventWithNumeric) {
-    const numericField = firstEventWithNumeric.inputs?.find(input =>
-      input.type.startsWith('uint') || input.type.startsWith('int')
-    )
-    const eventName = firstEventWithNumeric.name.toLowerCase()
-
-    queries.push({
-      name: `${firstEventWithNumeric.name} trend`,
-      description: `Area chart of ${firstEventWithNumeric.name}`,
-      query: `SELECT block_num, ${numericField?.name} FROM "eth_global/counter@dev".${eventName} ORDER BY block_num ASC LIMIT 50`,
-      chartType: 'area' as ChartType,
-    })
-  }
-
-  return queries
-}
-
-export function GraphsEditor({ contractAddress, contractAbi, sqlResults, isLoading, chartType, onChartTypeChange }: Props) {
+export function GraphsEditor({ sqlResults, eventData }: Props) {
+  const [dataSource, setDataSource] = useState<DataSource>('sql')
+  const [chartType, setChartType] = useState<ChartType>('line')
   const [xAxis, setXAxis] = useState<string>('')
   const [yAxis, setYAxis] = useState<string>('')
+  const [chartTitle, setChartTitle] = useState('')
 
-  // Get the current data
-  const currentData = sqlResults
+  // Get the current data based on selected source
+  const currentData = dataSource === 'sql' ? sqlResults : eventData
 
   // Get available columns from the data
   const availableColumns = useMemo(() => {
@@ -148,7 +52,9 @@ export function GraphsEditor({ contractAddress, contractAbi, sqlResults, isLoadi
       return (
         <div className="flex items-center justify-center h-full text-[var(--ide-text-muted)] text-sm">
           {currentData.length === 0 ? (
-            'Select a query from the sidebar to visualize data'
+            dataSource === 'sql' ?
+              'Run a SQL query to visualize data' :
+              'Deploy a contract and call functions to generate events'
           ) : (
             'Select columns to visualize'
           )}
@@ -254,84 +160,130 @@ export function GraphsEditor({ contractAddress, contractAbi, sqlResults, isLoadi
   }
 
   return (
-    <div className="h-full flex flex-col bg-[var(--ide-editor-bg)]">
-      {/* Configuration Bar */}
-      {currentData.length > 0 && (
-        <div className="flex-shrink-0 border-b border-[var(--ide-border-default)] p-3 bg-[var(--ide-sidebar-bg)]">
-          <div className="flex items-center gap-4">
-            {/* Chart Type */}
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-                CHART TYPE:
-              </label>
-              <div className="flex gap-1">
-                {(['line', 'bar', 'pie', 'area'] as ChartType[]).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => onChartTypeChange(type)}
-                    className={`px-2 py-1 text-xs rounded capitalize transition-colors ${
-                      chartType === type
-                        ? 'bg-[var(--ide-accent-primary)] text-white'
-                        : 'bg-[var(--ide-input-bg)] text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover-bg)]'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
+    <div className="h-full flex">
+      {/* Left Panel - Configuration */}
+      <div className="w-64 border-r border-[var(--ide-border-default)] bg-[var(--ide-sidebar-bg)] overflow-y-auto">
+        <div className="p-3 space-y-4">
+          {/* Data Source */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--ide-text-muted)] mb-2 tracking-wider">
+              DATA SOURCE
+            </label>
+            <div className="space-y-1">
+              <button
+                onClick={() => setDataSource('sql')}
+                className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors ${
+                  dataSource === 'sql'
+                    ? 'bg-[var(--ide-accent-selection)] text-[var(--ide-text-primary)]'
+                    : 'text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover-bg)]'
+                }`}
+              >
+                SQL Query Results
+              </button>
+              <button
+                onClick={() => setDataSource('events')}
+                className={`w-full text-left px-3 py-1.5 text-xs rounded transition-colors ${
+                  dataSource === 'events'
+                    ? 'bg-[var(--ide-accent-selection)] text-[var(--ide-text-primary)]'
+                    : 'text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover-bg)]'
+                }`}
+              >
+                Event History
+              </button>
             </div>
+          </div>
 
-            {/* Axes Configuration */}
-            {availableColumns.length > 0 && (
-              <>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-                    X-AXIS:
-                  </label>
-                  <select
-                    value={xAxis}
-                    onChange={(e) => setXAxis(e.target.value)}
-                    className="px-2 py-1 text-xs bg-[var(--ide-input-bg)] border border-[var(--ide-border-default)] rounded text-[var(--ide-text-primary)] focus:border-[var(--ide-accent-primary)] outline-none"
-                  >
-                    {availableColumns.map((col) => (
-                      <option key={col} value={col}>{col}</option>
-                    ))}
-                  </select>
-                </div>
+          {/* Chart Type */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--ide-text-muted)] mb-2 tracking-wider">
+              CHART TYPE
+            </label>
+            <div className="grid grid-cols-2 gap-1">
+              {(['line', 'bar', 'pie', 'area'] as ChartType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setChartType(type)}
+                  className={`px-3 py-1.5 text-xs rounded capitalize transition-colors ${
+                    chartType === type
+                      ? 'bg-[var(--ide-accent-primary)] text-white'
+                      : 'bg-[var(--ide-input-bg)] text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover-bg)]'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
 
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-                    Y-AXIS:
-                  </label>
-                  <select
-                    value={yAxis}
-                    onChange={(e) => setYAxis(e.target.value)}
-                    className="px-2 py-1 text-xs bg-[var(--ide-input-bg)] border border-[var(--ide-border-default)] rounded text-[var(--ide-text-primary)] focus:border-[var(--ide-accent-primary)] outline-none"
-                  >
-                    {availableColumns.map((col) => (
-                      <option key={col} value={col}>{col}</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
+          {/* Column Mapping */}
+          {availableColumns.length > 0 && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-[var(--ide-text-muted)] mb-2 tracking-wider">
+                  X-AXIS
+                </label>
+                <select
+                  value={xAxis}
+                  onChange={(e) => setXAxis(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs bg-[var(--ide-input-bg)] border border-[var(--ide-border-default)] rounded text-[var(--ide-text-primary)] focus:border-[var(--ide-accent-primary)] outline-none"
+                >
+                  {availableColumns.map((col) => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--ide-text-muted)] mb-2 tracking-wider">
+                  Y-AXIS
+                </label>
+                <select
+                  value={yAxis}
+                  onChange={(e) => setYAxis(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs bg-[var(--ide-input-bg)] border border-[var(--ide-border-default)] rounded text-[var(--ide-text-primary)] focus:border-[var(--ide-accent-primary)] outline-none"
+                >
+                  {availableColumns.map((col) => (
+                    <option key={col} value={col}>{col}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* Chart Title */}
+          <div>
+            <label className="block text-xs font-semibold text-[var(--ide-text-muted)] mb-2 tracking-wider">
+              TITLE (OPTIONAL)
+            </label>
+            <input
+              type="text"
+              value={chartTitle}
+              onChange={(e) => setChartTitle(e.target.value)}
+              placeholder="Chart title..."
+              className="w-full px-2 py-1.5 text-xs bg-[var(--ide-input-bg)] border border-[var(--ide-border-default)] rounded text-[var(--ide-text-primary)] placeholder-[var(--ide-text-muted)] focus:border-[var(--ide-accent-primary)] outline-none"
+            />
+          </div>
+
+          {/* Data Info */}
+          <div className="pt-4 border-t border-[var(--ide-border-default)]">
+            <div className="text-xs text-[var(--ide-text-muted)] space-y-1">
+              <div>Records: {currentData.length}</div>
+              <div>Columns: {availableColumns.length}</div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Chart Display */}
-      <div className="flex-1 p-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full text-[var(--ide-text-muted)] text-sm">
-            <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            Loading data...
+      {/* Right Panel - Chart Preview */}
+      <div className="flex-1 flex flex-col bg-[var(--ide-editor-bg)]">
+        {chartTitle && (
+          <div className="px-4 py-3 border-b border-[var(--ide-border-default)]">
+            <h2 className="text-sm font-semibold text-[var(--ide-text-primary)]">{chartTitle}</h2>
           </div>
-        ) : (
-          renderChart()
         )}
+        <div className="flex-1 p-4">
+          {renderChart()}
+        </div>
       </div>
     </div>
   )

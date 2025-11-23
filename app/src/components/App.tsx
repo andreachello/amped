@@ -16,12 +16,13 @@ import { LogsAndTransactionsTabs } from "./LogsAndTransactionsTabs.tsx";
 import { SQLEditor } from "./SQLEditor.tsx";
 import { SQLResults } from "./SQLResults.tsx";
 import { GraphsEditor } from "./GraphsEditor.tsx";
-import { GraphsSidebar } from "./GraphsSidebar.tsx";
+import { ExampleGraphQueries } from "./ExampleGraphQueries.tsx";
 import {
   addDeployment,
   loadDeployments,
   type DeploymentRecord,
 } from "../lib/deploymentHistory.ts";
+import { useAllEventData } from "../hooks/useAllEventData.ts";
 import { getContractFunctionEventMapping, type FunctionEventMapping } from "../lib/contractParser.ts";
 import { categorizeAbi } from "../lib/abiHelpers.ts";
 import { privateKeyToAccount } from "viem/accounts";
@@ -64,12 +65,8 @@ export function App() {
   const [sqlIsLoading, setSqlIsLoading] = useState(false)
   const [sqlError, setSqlError] = useState<string | null>(null)
 
-  // Event data for graphs
-  const [eventData, setEventData] = useState<any[]>([])
-
-  // Graphs state
-  const [selectedGraphQueryIndex, setSelectedGraphQueryIndex] = useState<number | null>(null)
-  const [graphChartType, setGraphChartType] = useState<'line' | 'bar' | 'pie' | 'area'>('line')
+  // Fetch all event data for graphs
+  const { data: eventData } = useAllEventData(contractAddress, contractAbi)
 
   // Load deployment history on mount
   useEffect(() => {
@@ -143,9 +140,8 @@ export function App() {
     }, 100)
   }
 
-  const executeQuery = async (queryOverride?: string) => {
-    const queryToExecute = queryOverride || sqlQuery
-    if (!queryToExecute.trim()) return
+  const executeQuery = async () => {
+    if (!sqlQuery.trim()) return
 
     setSqlIsLoading(true)
     setSqlError(null)
@@ -157,7 +153,7 @@ export function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: queryToExecute }),
+        body: JSON.stringify({ query: sqlQuery }),
       })
 
       const data = await response.json()
@@ -181,10 +177,17 @@ export function App() {
     if (tabId === 'sql') {
       setActiveBottomTab('results')
     } else if (tabId === 'graphs') {
-      setActiveBottomTab(eventData.length > 0 ? 'graph-data' : 'events')
+      setActiveBottomTab('graph-data')
     } else {
       setActiveBottomTab('events')
     }
+  }
+
+  // Handle example query selection from inspector
+  const handleSelectExampleQuery = (query: string, title: string) => {
+    setSqlQuery(query)
+    setActiveEditorTab('sql')
+    setActiveBottomTab('results')
   }
 
   // Define editor tabs
@@ -232,12 +235,8 @@ export function App() {
       title: 'Graphs',
       content: (
         <GraphsEditor
-          contractAddress={contractAddress}
-          contractAbi={contractAbi}
           sqlResults={sqlResults}
-          isLoading={sqlIsLoading}
-          chartType={graphChartType}
-          onChartTypeChange={setGraphChartType}
+          eventData={eventData}
         />
       )
     }
@@ -263,10 +262,45 @@ export function App() {
       id: 'graph-data',
       title: 'Data Table',
       content: (
-        <div className="h-full p-3">
-          <div className="text-xs text-[var(--ide-text-muted)]">
-            Data table view will show the source data being graphed
-          </div>
+        <div className="h-full p-3 overflow-auto">
+          {eventData && eventData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <div className="text-xs text-[var(--ide-text-muted)] mb-2">
+                All contract events ({eventData.length} records)
+              </div>
+              <table className="min-w-full divide-y divide-[var(--ide-border-default)]">
+                <thead>
+                  <tr>
+                    {Object.keys(eventData[0]).map((key) => (
+                      <th key={key} className="px-3 py-2 text-left text-xs font-semibold text-[var(--ide-text-primary)] bg-[var(--ide-sidebar-bg)]">
+                        {key}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--ide-border-default)]">
+                  {eventData.slice(0, 50).map((row, idx) => (
+                    <tr key={idx} className="hover:bg-[var(--ide-hover-bg)]">
+                      {Object.values(row).map((value: any, cellIdx) => (
+                        <td key={cellIdx} className="px-3 py-2 text-xs text-[var(--ide-text-primary)] font-mono">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {eventData.length > 50 && (
+                <div className="text-xs text-[var(--ide-text-muted)] mt-2">
+                  Showing first 50 of {eventData.length} records
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-xs text-[var(--ide-text-muted)] italic">
+              No event data available. Deploy a contract and call functions to generate events.
+            </div>
+          )}
         </div>
       )
     }
@@ -312,25 +346,8 @@ export function App() {
     }
   ]
 
-  // Sidebar content based on active view or editor tab
+  // Sidebar content based on active view
   const getSidebarContent = () => {
-    // Show GraphsSidebar when on the Graphs tab
-    if (activeEditorTab === 'graphs') {
-      return (
-        <GraphsSidebar
-          contractAddress={contractAddress}
-          contractAbi={contractAbi}
-          selectedQueryIndex={selectedGraphQueryIndex}
-          onSelectQuery={(query, index) => {
-            setSelectedGraphQueryIndex(index)
-            setGraphChartType(query.chartType)
-            setSqlQuery(query.query)
-            executeQuery(query.query)
-          }}
-        />
-      )
-    }
-
     switch (activeSidebarView) {
       case 'deployments':
         return (
@@ -377,7 +394,12 @@ export function App() {
       }
       inspectorContent={
         <InspectorPanel isOpen={true} onToggle={() => {}}>
-          {contractAddress ? (
+          {activeEditorTab === 'graphs' ? (
+            <ExampleGraphQueries
+              contractAddress={contractAddress}
+              onSelectQuery={handleSelectExampleQuery}
+            />
+          ) : contractAddress ? (
             <>
               <div className="border-b border-[var(--ide-border-default)] pb-3 mb-3">
                 <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] mb-3 tracking-wider">
