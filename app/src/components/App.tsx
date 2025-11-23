@@ -17,6 +17,8 @@ import { SQLEditor } from "./SQLEditor.tsx";
 import { SQLResults } from "./SQLResults.tsx";
 import { GraphsEditor } from "./GraphsEditor.tsx";
 import { ExampleGraphQueries } from "./ExampleGraphQueries.tsx";
+import { SavedQueries } from "./SavedQueries.tsx";
+import { ContractABIViewer } from "./ContractABIViewer.tsx";
 import {
   addDeployment,
   loadDeployments,
@@ -55,7 +57,7 @@ export function App() {
   const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null)
 
   // IDE Layout state
-  const [activeSidebarView, setActiveSidebarView] = useState<ActivityView>('explorer')
+  const [activeSidebarView, setActiveSidebarView] = useState<ActivityView>('deployments')
   const [activeEditorTab, setActiveEditorTab] = useState('editor')
   const [activeBottomTab, setActiveBottomTab] = useState('events')
 
@@ -185,6 +187,13 @@ export function App() {
 
   // Handle example query selection from inspector
   const handleSelectExampleQuery = (query: string, title: string) => {
+    setSqlQuery(query)
+    setActiveEditorTab('sql')
+    setActiveBottomTab('results')
+  }
+
+  // Handle saved query selection from sidebar
+  const handleSelectSavedQuery = (query: string) => {
     setSqlQuery(query)
     setActiveEditorTab('sql')
     setActiveBottomTab('results')
@@ -358,15 +367,16 @@ export function App() {
         )
       case 'contract':
         return (
-          <div className="p-3 text-sm text-[var(--ide-text-muted)]">
-            Contract functions and ABI will appear here
-          </div>
+          <ContractABIViewer
+            contractAbi={contractAbi}
+            contractAddress={contractAddress}
+          />
         )
       case 'sql':
         return (
-          <div className="p-3 text-sm text-[var(--ide-text-muted)]">
-            Saved SQL queries will appear here
-          </div>
+          <SavedQueries
+            onSelectQuery={handleSelectSavedQuery}
+          />
         )
       default:
         return (

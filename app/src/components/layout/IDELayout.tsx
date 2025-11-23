@@ -49,7 +49,7 @@ export function IDELayout({
           {/* Left Sidebar */}
           {isSidebarOpen && (
             <>
-              <Panel defaultSize={15} minSize={10} maxSize={30}>
+              <Panel defaultSize={15} minSize={10} maxSize={15}>
                 <Sidebar
                   activeView={activeView}
                   isOpen={isSidebarOpen}

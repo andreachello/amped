@@ -44,17 +44,22 @@ export function DeploymentSelector({ activeDeploymentId, onSelectDeployment }: P
     setEditLabel('')
   }
 
-  if (deployments.length === 0) {
-    return (
-      <div className="text-xs text-[var(--ide-text-muted)] italic px-2">
-        No deployments yet
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-1">
-      {deployments.map((deployment) => (
+    <div className="h-full flex flex-col bg-[var(--ide-sidebar-bg)]">
+      <div className="px-3 py-2 border-b border-[var(--ide-border-default)]">
+        <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
+          DEPLOYMENT HISTORY
+        </h3>
+      </div>
+
+      <div className="flex-1 overflow-y-auto min-h-0 p-2">
+        {deployments.length === 0 ? (
+          <div className="text-xs text-[var(--ide-text-muted)] italic px-2">
+            No deployments yet
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {deployments.map((deployment) => (
         <div
           key={deployment.id}
           className={`group relative ${
@@ -132,6 +137,9 @@ export function DeploymentSelector({ activeDeploymentId, onSelectDeployment }: P
           </div>
         </div>
       ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
