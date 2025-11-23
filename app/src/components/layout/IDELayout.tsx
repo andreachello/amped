@@ -39,9 +39,14 @@ export function IDELayout({
   }, [initialSidebarClosed])
 
   const handleViewChange = (view: ActivityView) => {
-    setActiveView(view)
-    setIsSidebarOpen(true)
-    onViewChange?.(view)
+    // Toggle sidebar if clicking the same view while sidebar is open
+    if (view === activeView && isSidebarOpen) {
+      setIsSidebarOpen(false)
+    } else {
+      setActiveView(view)
+      setIsSidebarOpen(true)
+      onViewChange?.(view)
+    }
   }
 
   return (

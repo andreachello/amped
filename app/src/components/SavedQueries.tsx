@@ -55,12 +55,6 @@ export function SavedQueries({ onSelectQuery }: Props) {
 
   return (
     <div className="h-full flex flex-col bg-[var(--ide-sidebar-bg)]">
-      <div className="px-3 py-2 border-b border-[var(--ide-border-default)]">
-        <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-          SQL QUERIES
-        </h3>
-      </div>
-
       <div className="flex-1 overflow-y-auto min-h-0">
         {savedQueries.length === 0 ? (
           <div className="p-3 text-xs text-[var(--ide-text-muted)] italic">

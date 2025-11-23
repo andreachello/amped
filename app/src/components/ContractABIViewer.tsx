@@ -13,11 +13,6 @@ export function ContractABIViewer({ contractAbi, contractAddress }: Props) {
   if (!contractAbi || !contractAddress) {
     return (
       <div className="h-full flex flex-col bg-[var(--ide-sidebar-bg)]">
-        <div className="px-3 py-2 border-b border-[var(--ide-border-default)]">
-          <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-            CONTRACT INTERFACE
-          </h3>
-        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="p-3 text-xs text-[var(--ide-text-muted)] italic text-center">
             Deploy a contract to view its ABI
@@ -40,11 +35,6 @@ export function ContractABIViewer({ contractAbi, contractAddress }: Props) {
     console.error('Error categorizing ABI:', error)
     return (
       <div className="h-full flex flex-col bg-[var(--ide-sidebar-bg)]">
-        <div className="px-3 py-2 border-b border-[var(--ide-border-default)]">
-          <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-            CONTRACT INTERFACE
-          </h3>
-        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="p-3 text-xs text-red-400 text-center">
             Error loading ABI
@@ -95,12 +85,6 @@ export function ContractABIViewer({ contractAbi, contractAddress }: Props) {
 
   return (
     <div className="h-full flex flex-col bg-[var(--ide-sidebar-bg)]">
-      <div className="px-3 py-2 border-b border-[var(--ide-border-default)]">
-        <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-          CONTRACT INTERFACE
-        </h3>
-      </div>
-
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Read Functions */}
         <div className="border-b border-[var(--ide-border-default)]">

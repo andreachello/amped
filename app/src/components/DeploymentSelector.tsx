@@ -46,12 +46,6 @@ export function DeploymentSelector({ activeDeploymentId, onSelectDeployment }: P
 
   return (
     <div className="h-full flex flex-col bg-[var(--ide-sidebar-bg)]">
-      <div className="px-3 py-2 border-b border-[var(--ide-border-default)]">
-        <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] tracking-wider">
-          DEPLOYMENT HISTORY
-        </h3>
-      </div>
-
       <div className="flex-1 overflow-y-auto min-h-0 p-2">
         {deployments.length === 0 ? (
           <div className="text-xs text-[var(--ide-text-muted)] italic px-2">
