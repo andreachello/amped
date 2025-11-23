@@ -15,6 +15,8 @@ import { DeploymentSelector } from "./DeploymentSelector.tsx";
 import { LogsAndTransactionsTabs } from "./LogsAndTransactionsTabs.tsx";
 import { SQLEditor } from "./SQLEditor.tsx";
 import { SQLResults } from "./SQLResults.tsx";
+import { GraphsEditor } from "./GraphsEditor.tsx";
+import { GraphsSidebar } from "./GraphsSidebar.tsx";
 import {
   addDeployment,
   loadDeployments,
@@ -61,6 +63,13 @@ export function App() {
   const [sqlResults, setSqlResults] = useState<any[]>([])
   const [sqlIsLoading, setSqlIsLoading] = useState(false)
   const [sqlError, setSqlError] = useState<string | null>(null)
+
+  // Event data for graphs
+  const [eventData, setEventData] = useState<any[]>([])
+
+  // Graphs state
+  const [selectedGraphQueryIndex, setSelectedGraphQueryIndex] = useState<number | null>(null)
+  const [graphChartType, setGraphChartType] = useState<'line' | 'bar' | 'pie' | 'area'>('line')
 
   // Load deployment history on mount
   useEffect(() => {
@@ -134,8 +143,9 @@ export function App() {
     }, 100)
   }
 
-  const executeQuery = async () => {
-    if (!sqlQuery.trim()) return
+  const executeQuery = async (queryOverride?: string) => {
+    const queryToExecute = queryOverride || sqlQuery
+    if (!queryToExecute.trim()) return
 
     setSqlIsLoading(true)
     setSqlError(null)
@@ -147,7 +157,7 @@ export function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query: sqlQuery }),
+        body: JSON.stringify({ query: queryToExecute }),
       })
 
       const data = await response.json()
@@ -170,6 +180,8 @@ export function App() {
     setActiveEditorTab(tabId)
     if (tabId === 'sql') {
       setActiveBottomTab('results')
+    } else if (tabId === 'graphs') {
+      setActiveBottomTab(eventData.length > 0 ? 'graph-data' : 'events')
     } else {
       setActiveBottomTab('events')
     }
@@ -214,6 +226,20 @@ export function App() {
           isLoading={sqlIsLoading}
         />
       )
+    },
+    {
+      id: 'graphs',
+      title: 'Graphs',
+      content: (
+        <GraphsEditor
+          contractAddress={contractAddress}
+          contractAbi={contractAbi}
+          sqlResults={sqlResults}
+          isLoading={sqlIsLoading}
+          chartType={graphChartType}
+          onChartTypeChange={setGraphChartType}
+        />
+      )
     }
   ]
 
@@ -229,6 +255,18 @@ export function App() {
             isLoading={sqlIsLoading}
             error={sqlError}
           />
+        </div>
+      )
+    }
+  ] : activeEditorTab === 'graphs' ? [
+    {
+      id: 'graph-data',
+      title: 'Data Table',
+      content: (
+        <div className="h-full p-3">
+          <div className="text-xs text-[var(--ide-text-muted)]">
+            Data table view will show the source data being graphed
+          </div>
         </div>
       )
     }
@@ -274,8 +312,25 @@ export function App() {
     }
   ]
 
-  // Sidebar content based on active view
+  // Sidebar content based on active view or editor tab
   const getSidebarContent = () => {
+    // Show GraphsSidebar when on the Graphs tab
+    if (activeEditorTab === 'graphs') {
+      return (
+        <GraphsSidebar
+          contractAddress={contractAddress}
+          contractAbi={contractAbi}
+          selectedQueryIndex={selectedGraphQueryIndex}
+          onSelectQuery={(query, index) => {
+            setSelectedGraphQueryIndex(index)
+            setGraphChartType(query.chartType)
+            setSqlQuery(query.query)
+            executeQuery(query.query)
+          }}
+        />
+      )
+    }
+
     switch (activeSidebarView) {
       case 'deployments':
         return (
