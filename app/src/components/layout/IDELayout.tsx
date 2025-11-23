@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { ActivityBar, ActivityView } from './ActivityBar'
 import { Sidebar } from './Sidebar'
@@ -14,6 +14,7 @@ interface IDELayoutProps {
   inspectorContent?: ReactNode
   bottomContent?: ReactNode
   onViewChange?: (view: ActivityView) => void
+  initialSidebarClosed?: boolean
 }
 
 export function IDELayout({
@@ -24,12 +25,18 @@ export function IDELayout({
   editorContent,
   inspectorContent,
   bottomContent,
-  onViewChange
+  onViewChange,
+  initialSidebarClosed = false
 }: IDELayoutProps) {
   const [activeView, setActiveView] = useState<ActivityView>('explorer')
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!initialSidebarClosed)
   const [isInspectorOpen, setIsInspectorOpen] = useState(true)
   const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(true)
+
+  // Update sidebar state when initialSidebarClosed changes (e.g., when switching tabs)
+  useEffect(() => {
+    setIsSidebarOpen(!initialSidebarClosed)
+  }, [initialSidebarClosed])
 
   const handleViewChange = (view: ActivityView) => {
     setActiveView(view)

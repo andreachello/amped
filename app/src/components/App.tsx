@@ -19,6 +19,7 @@ import { GraphsEditor } from "./GraphsEditor.tsx";
 import { ExampleGraphQueries } from "./ExampleGraphQueries.tsx";
 import { SavedQueries } from "./SavedQueries.tsx";
 import { ContractABIViewer } from "./ContractABIViewer.tsx";
+import { WalletDashboard } from "./WalletDashboard.tsx";
 import {
   addDeployment,
   loadDeployments,
@@ -68,6 +69,9 @@ export function App() {
   const [sqlResults, setSqlResults] = useState<any[]>([])
   const [sqlIsLoading, setSqlIsLoading] = useState(false)
   const [sqlError, setSqlError] = useState<string | null>(null)
+
+  // Wallet Analytics state
+  const [selectedWallet, setSelectedWallet] = useState<Address>(address)
 
   // Fetch all event data for graphs
   const { data: eventData } = useAllEventData(contractAddress, contractAbi)
@@ -189,6 +193,7 @@ export function App() {
     } else if (tabId === 'graphs') {
       setActiveBottomTab('graph-data')
     } else {
+      // For 'editor' and 'wallet' tabs, show events
       setActiveBottomTab('events')
     }
   }
@@ -256,6 +261,16 @@ export function App() {
         <GraphsEditor
           sqlResults={sqlResults}
           eventData={eventData}
+        />
+      )
+    },
+    {
+      id: 'wallet',
+      title: 'Wallet Analytics',
+      content: (
+        <WalletDashboard
+          selectedWallet={selectedWallet}
+          onWalletChange={setSelectedWallet}
         />
       )
     }
@@ -404,6 +419,7 @@ export function App() {
       contractAddress={contractAddress}
       contractName={`${contractName}.sol`}
       onViewChange={setActiveSidebarView}
+      initialSidebarClosed={activeEditorTab === 'wallet'}
       sidebarContent={getSidebarContent()}
       editorContent={
         <EditorPanel
