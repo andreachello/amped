@@ -34,6 +34,12 @@ UNION ALL
 SELECT 'decremented', COUNT(*) FROM "eth_global/counter@dev".decremented
 UNION ALL
 SELECT 'returned', COUNT(*) FROM "eth_global/counter@dev".returned`
+  },
+  {
+    name: 'Group by count value',
+    query: contractAddress
+      ? `SELECT count, COUNT(*) FROM "eth_global/counter@dev".decremented WHERE address = decode('${contractAddress.toLowerCase().replace('0x', '')}', 'hex') GROUP BY count ORDER BY count DESC LIMIT 10`
+      : `SELECT count, COUNT(*) FROM "eth_global/counter@dev".decremented GROUP BY count ORDER BY count DESC LIMIT 10`
   }
 ]
 

@@ -5,7 +5,7 @@ import type { AbiFunction } from 'abitype'
 import { performAmpQuery, EVENTS_DATASET } from '../lib/runtime'
 import { categorizeAbi } from '../lib/abiHelpers'
 import type { FunctionEventMapping } from '../lib/contractParser'
-import { createAddressFilter } from '../lib/ampHelpers'
+import { createAddressFilter, eventNameToTableName, paramNameToColumnName } from '../lib/ampHelpers'
 
 const ITEMS_PER_PAGE = 10
 
@@ -13,9 +13,10 @@ interface Props {
   contractAddress?: Address
   contractAbi: Abi
   functionEventMapping?: FunctionEventMapping
+  datasetName?: string
 }
 
-export function DynamicFunctionTables({ contractAddress, contractAbi, functionEventMapping }: Props) {
+export function DynamicFunctionTables({ contractAddress, contractAbi, functionEventMapping, datasetName }: Props) {
   const { writeFunctions, events } = useMemo(() => categorizeAbi(contractAbi), [contractAbi])
   const [activeTab, setActiveTab] = useState(0)
 
@@ -38,11 +39,10 @@ export function DynamicFunctionTables({ contractAddress, contractAbi, functionEv
             <button
               key={func.name}
               onClick={() => setActiveTab(index)}
-              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                index === activeTab
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-              }`}
+              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors ${index === activeTab
+                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
             >
               {func.name}()
             </button>
@@ -57,6 +57,7 @@ export function DynamicFunctionTables({ contractAddress, contractAbi, functionEv
           contractAddress={contractAddress}
           functionEventMapping={functionEventMapping}
           allEvents={events}
+          datasetName={datasetName}
         />
       </div>
     </div>
@@ -68,9 +69,10 @@ interface FunctionTableProps {
   contractAddress?: Address
   functionEventMapping?: FunctionEventMapping
   allEvents: any[]
+  datasetName?: string
 }
 
-function FunctionTable({ func, contractAddress, functionEventMapping, allEvents }: FunctionTableProps) {
+function FunctionTable({ func, contractAddress, functionEventMapping, allEvents, datasetName }: FunctionTableProps) {
   const [page, setPage] = useState(0)
 
   // Get the events this function emits
@@ -85,10 +87,10 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
   // If no mapping, try to infer from name similarity (legacy fallback)
   const inferredEvents = eventNames.length === 0
     ? allEvents.filter(event => {
-        const funcStem = func.name.toLowerCase().replace(/^(increment|decrement|set|add|remove|update).*/, '$1')
-        const eventStem = event.name.toLowerCase().replace(/(ed|d)$/, '')
-        return funcStem === eventStem
-      })
+      const funcStem = func.name.toLowerCase().replace(/^(increment|decrement|set|add|remove|update).*/, '$1')
+      const eventStem = event.name.toLowerCase().replace(/(ed|d)$/, '')
+      return funcStem === eventStem
+    })
     : allEvents.filter(event => eventNames.includes(event.name))
 
   // Use the first matched event for querying
@@ -109,24 +111,55 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
 
       try {
         // Get column names from event inputs
-        const eventColumns = primaryEvent.inputs?.map((input: any) => input.name || input.type) || []
+        // Amp converts parameter names to snake_case (e.g., "newValue" -> "new_value")
+        const eventColumns = primaryEvent.inputs?.map((input: any) => {
+          if (input.name) {
+            return paramNameToColumnName(input.name)
+          }
+          // If no name, use the type (but this shouldn't happen with proper ABIs)
+          return input.type.toLowerCase().replace(/[^a-z0-9]/g, '_')
+        }) || []
         const allColumns = ['block_num', 'timestamp', ...eventColumns]
 
         const offset = page * ITEMS_PER_PAGE
-        const tableName = primaryEvent.name.toLowerCase()
+        // Amp's eventTables uses snake_case for table names (e.g., "ValueReturned" -> "value_returned")
+        const tableName = eventNameToTableName(primaryEvent.name)
         const addressFilter = createAddressFilter(contractAddress)
 
+        // Try to query the table - Amp creates tables lazily, so they might not exist until first query/event
+        // We'll catch the error and show a helpful message
+
         const query = `SELECT ${allColumns.join(', ')}
-          FROM "${EVENTS_DATASET}".${tableName}
+          FROM "${datasetName || EVENTS_DATASET}".${tableName}
           ${addressFilter}
           ORDER BY block_num DESC
           LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}`
 
         return await performAmpQuery<Record<string, any>>(query)
       } catch (error: any) {
-        // Table doesn't exist yet - this is normal for new contracts/functions
-        // Just return empty array instead of throwing
-        console.log(`No data for ${func.name}() yet - table may not exist until function is called`)
+        // Check if it's a table not found error vs other error
+        const errorMessage = error?.message || String(error)
+        const isTableNotFound =
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('table') && errorMessage.includes('not found') ||
+          errorMessage.includes('timeout') && errorMessage.includes('table may not exist') ||
+          errorMessage.includes('Unknown table')
+
+        if (isTableNotFound) {
+          // Table doesn't exist - this can happen if:
+          // 1. Dataset wasn't properly deployed/registered
+          // 2. Amp dev server needs to be restarted to pick up new dataset
+          // 3. Table will be created when first event is emitted (lazy creation)
+          console.warn(`⚠️  Table "${tableName}" does not exist yet.`)
+          console.warn(`   This usually means:`)
+          console.warn(`   1. The dataset needs to be redeployed (try redeploying the contract)`)
+          console.warn(`   2. Amp dev server needs to be restarted (run: pnpm amp dev)`)
+          console.warn(`   3. Or the table will be created when ${func.name}() is first called`)
+        } else {
+          console.error(`❌ Error querying ${func.name}() events:`, error)
+          console.error(`   Full error:`, errorMessage)
+        }
+        // Return empty array for any error - table might not exist yet or might be empty
         return []
       }
     },
@@ -183,9 +216,20 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
           <div className="inline-block min-w-full py-2 align-middle">
             {isLoading ? (
               <div className="text-sm text-gray-500 py-4">Loading transactions...</div>
-            ) : isError ? (
-              <div className="text-sm text-gray-500 py-4">
-                No {func.name}() transactions yet. Call this function to see transactions appear here.
+            ) : isError && results.length === 0 ? (
+              <div className="text-sm text-amber-600 dark:text-amber-400 py-4 border border-amber-200 dark:border-amber-800 rounded-md p-4 bg-amber-50 dark:bg-amber-900/20">
+                <p className="font-medium mb-2">⚠️ Table not found</p>
+                <p className="text-xs mb-2">
+                  The table "{eventNameToTableName(primaryEvent.name)}" doesn't exist yet. This usually means:
+                </p>
+                <ul className="text-xs list-disc list-inside space-y-1 mb-2">
+                  <li>The dataset needs to be redeployed (try redeploying the contract)</li>
+                  <li>Amp dev server needs to be restarted (run: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">pnpm amp dev</code>)</li>
+                  <li>Or the table will be created when {func.name}() is first called and emits the {primaryEvent.name} event</li>
+                </ul>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Dataset: {datasetName || EVENTS_DATASET}
+                </p>
               </div>
             ) : results.length === 0 ? (
               <div className="text-sm text-gray-500 py-4">
@@ -208,16 +252,19 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
                       >
                         Timestamp
                       </th>
-                      {primaryEvent.inputs?.map((input: any, idx: number) => (
-                        <th
-                          key={idx}
-                          scope="col"
-                          className="px-2 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white"
-                        >
-                          {input.name || `param${idx}`}
-                          <span className="text-xs text-gray-500 ml-1">({input.type})</span>
-                        </th>
-                      ))}
+                      {primaryEvent.inputs?.map((input: any, idx: number) => {
+                        const columnName = input.name ? paramNameToColumnName(input.name) : `param${idx}`
+                        return (
+                          <th
+                            key={idx}
+                            scope="col"
+                            className="px-2 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white"
+                          >
+                            {input.name || `param${idx}`}
+                            <span className="text-xs text-gray-500 ml-1">({input.type})</span>
+                          </th>
+                        )
+                      })}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-white/10">
@@ -230,7 +277,9 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
                           {row.timestamp}
                         </td>
                         {primaryEvent.inputs?.map((input: any, idx: number) => {
-                          const value = row[input.name || input.type]
+                          // Use snake_case column name to match Amp's table schema
+                          const columnName = input.name ? paramNameToColumnName(input.name) : input.type.toLowerCase().replace(/[^a-z0-9]/g, '_')
+                          const value = row[columnName]
                           return (
                             <td
                               key={idx}

@@ -74,7 +74,7 @@ export function App() {
   const [selectedWallet, setSelectedWallet] = useState<Address>(address)
 
   // Fetch all event data for graphs
-  const { data: eventData } = useAllEventData(contractAddress, contractAbi)
+  const { data: eventData } = useAllEventData(contractAddress, contractAbi, datasetName)
 
   // Load deployment history on mount
   useEffect(() => {
@@ -349,6 +349,7 @@ export function App() {
               contractAddress={contractAddress}
               contractAbi={contractAbi}
               functionEventMapping={functionEventMapping}
+              datasetName={datasetName}
             />
           ) : (
             <div className="text-center py-12 text-[var(--ide-text-muted)]">

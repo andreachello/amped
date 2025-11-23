@@ -26,7 +26,8 @@ export async function deployContract(solidityCode: string, contractName: string)
   const projectRoot = path.resolve(__dirname, '../../..')
   const timestamp = Date.now()
   const contractFilename = contractNameToFilename(contractName)
-  const datasetName = generateDatasetName(contractName, timestamp)
+  // Use simple dataset naming like _/counter@dev for local development
+  const datasetName = `_/${contractName.toLowerCase()}@dev`
 
   // Dynamic paths based on contract name
   const contractPath = path.join(projectRoot, `contracts/src/${contractFilename}`)
@@ -96,7 +97,7 @@ export async function deployContract(solidityCode: string, contractName: string)
 
     // Step 7: Extract transaction hash
     const transactionHash = broadcastData.transactions?.[1]?.hash ||
-                           broadcastData.transactions?.[0]?.hash
+      broadcastData.transactions?.[0]?.hash
 
     // Step 8: Build and register Amp dataset with unique name
     // This creates typed tables for all events for this specific contract deployment
@@ -106,26 +107,38 @@ export async function deployContract(solidityCode: string, contractName: string)
       const manifestPath = `/tmp/amp-${contractName.toLowerCase()}-${timestamp}-manifest.json`
 
       // First, update amp.config.ts with the new contract
+      // Use defineDataset with eventTables to ensure all event tables are created
+      // Read the ABI file and inline it to avoid import issues
+      const abiFileContent = JSON.parse(fs.readFileSync(abiPath, 'utf-8'))
+      // ABI is stored in the .abi property of the compiled JSON
+      const abiArray = abiFileContent.abi || abiFileContent
+      const abiJson = JSON.stringify(abiArray, null, 2)
+
       const ampConfigPath = path.join(projectRoot, 'amp.config.ts')
-      const ampConfig = `import type { AmpConfig } from '@edgeandnode/amp'
+      const ampConfig = `import { defineDataset, eventTables } from '@edgeandnode/amp'
 
-const config: AmpConfig = {
-  contracts: [
-    {
-      abiFile: './contracts/out/${contractFilename}/${contractName}.json',
-    }
-  ],
-  sources: {
-    '${contractName}_${timestamp}': 'anvil',
-  },
-  namespace: 'eth_global',
-  name: '${contractName.toLowerCase()}_${timestamp}'
-}
+// ABI loaded from compiled contract
+const abi = ${abiJson} as const
 
-export default config
+export default defineDataset(() => {
+  const baseTables = eventTables(abi, 'anvil')
+
+  return {
+    namespace: '_',
+    name: '${contractName.toLowerCase()}',
+    network: 'anvil',
+    description: 'Dataset for ${contractName} contract events',
+    dependencies: {
+      anvil: '_/anvil@0.0.1',
+    },
+    tables: {
+      ...baseTables, // All event tables from the contract ABI - created automatically
+    },
+  }
+})
 `
       fs.writeFileSync(ampConfigPath, ampConfig, 'utf-8')
-      console.log('✅ Updated amp.config.ts')
+      console.log('✅ Updated amp.config.ts with eventTables - all event tables will be created on deployment')
 
       // Build new manifest with updated ABI
       const buildAmpOutput = execSync(`pnpm amp build -o ${manifestPath}`, {
@@ -136,23 +149,78 @@ export default config
       console.log('✅ Amp manifest built')
       ampOutput += buildAmpOutput
 
-      // Register the manifest with unique dataset name
-      const registerOutput = execSync(`pnpm ampctl dataset register ${datasetName} ${manifestPath}`, {
+      // Register the manifest (without @dev version tag)
+      const datasetBaseName = `_/${contractName.toLowerCase()}`
+      const registerOutput = execSync(`pnpm ampctl dataset register ${datasetBaseName} ${manifestPath}`, {
         cwd: projectRoot,
         encoding: 'utf-8',
         timeout: 15000,
       })
-      console.log(`✅ Amp dataset ${datasetName} registered`)
+      console.log(`✅ Amp dataset ${datasetBaseName} registered`)
       ampOutput += '\n' + registerOutput
 
-      // Deploy the dataset (creates event tables)
+      // Deploy the dataset (with @dev version tag - creates event tables)
       const deployAmpOutput = execSync(`pnpm ampctl dataset deploy ${datasetName}`, {
         cwd: projectRoot,
         encoding: 'utf-8',
         timeout: 30000,
       })
-      console.log(`✅ Amp dataset ${datasetName} deployed - event tables created`)
+      console.log(`✅ Amp dataset ${datasetName} deployed`)
       ampOutput += '\n' + deployAmpOutput
+
+      // CRITICAL: Copy manifest to datasets directory so Amp dev mode picks it up automatically
+      // Amp dev mode watches the datasets directory for file changes
+      // This ensures the dataset is available immediately without restarting Amp
+      const datasetsDir = path.join(projectRoot, 'infra/amp/datasets')
+      if (!fs.existsSync(datasetsDir)) {
+        fs.mkdirSync(datasetsDir, { recursive: true })
+      }
+
+      // Copy manifest to datasets directory with a unique name
+      // Amp dev mode will detect the new file and load the dataset
+      const datasetFileName = `${contractName.toLowerCase()}-${timestamp}.json`
+      const datasetFilePath = path.join(datasetsDir, datasetFileName)
+      fs.copyFileSync(manifestPath, datasetFilePath)
+      console.log(`✅ Manifest copied to datasets directory for auto-detection`)
+      console.log(`   File: ${datasetFileName}`)
+      console.log(`   Amp dev mode will automatically load this dataset (no restart needed)`)
+
+      // Extract event names from ABI
+      const events = abiArray.filter((item: any) => item.type === 'event')
+      const eventNames = events.map((item: any) => item.name.toLowerCase())
+
+      if (eventNames.length > 0) {
+        console.log(`📋 Event tables defined for: ${eventNames.join(', ')}`)
+        console.log(`   Amp dev mode should automatically pick up the new dataset`)
+        console.log(`   Tables will be created when events are emitted or when first queried`)
+
+        // Give Amp a moment to pick up the new dataset (dev mode watches for changes)
+        // Then try to trigger table creation by querying them
+        console.log(`   Waiting for Amp to register the dataset...`)
+        await new Promise(resolve => setTimeout(resolve, 2000)) // 2 second delay
+
+        // Try to query each table to trigger creation (this will fail if table doesn't exist, but that's ok)
+        // The tables will be created when the first event is emitted
+        for (const event of events) {
+          const tableName = event.name.toLowerCase()
+          try {
+            // Try a simple query - this will create the table structure if possible
+            // Note: This might fail if table truly doesn't exist, which is expected
+            execSync(`pnpm amp query 'SELECT COUNT(*) FROM "${datasetName}".${tableName}'`, {
+              cwd: projectRoot,
+              encoding: 'utf-8',
+              timeout: 5000,
+              stdio: 'ignore', // Suppress output - we're just trying to trigger creation
+            })
+            console.log(`   ✅ Table ${tableName} is ready`)
+          } catch (queryError) {
+            // Expected - table will be created when first event is emitted
+            console.log(`   ⏳ Table ${tableName} will be created when ${event.name} event is emitted`)
+          }
+        }
+      } else {
+        console.log(`⚠️  No events found in ABI - no event tables will be created`)
+      }
     } catch (ampError: any) {
       console.warn('⚠️  Failed to build/register Amp dataset:', ampError.message)
       // Don't fail the deployment if Amp update fails

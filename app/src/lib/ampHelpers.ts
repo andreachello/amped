@@ -36,3 +36,40 @@ export function createAddressFilter(address?: Address): string {
   const hexAddress = formatAddressForAmpQuery(address)
   return `WHERE address = decode('${hexAddress}', 'hex')`
 }
+
+/**
+ * Converts an event name to the table name format used by Amp's eventTables.
+ * Amp uses snake_case for table names (e.g., "ValueReturned" -> "value_returned").
+ *
+ * @param eventName - The event name (e.g., "ValueReturned")
+ * @returns The table name in snake_case (e.g., "value_returned")
+ *
+ * @example
+ * eventNameToTableName("ValueReturned") // Returns: "value_returned"
+ * eventNameToTableName("ValueSet") // Returns: "value_set"
+ */
+export function eventNameToTableName(eventName: string): string {
+  // Convert PascalCase or camelCase to snake_case
+  return eventName
+    .replace(/([A-Z])/g, '_$1') // Insert underscore before capital letters
+    .toLowerCase() // Convert to lowercase
+    .replace(/^_/, '') // Remove leading underscore if present
+}
+
+/**
+ * Converts a parameter name to the column name format used by Amp's eventTables.
+ * Amp converts event parameter names to snake_case (e.g., "newValue" -> "new_value").
+ *
+ * @param paramName - The parameter name (e.g., "newValue")
+ * @returns The column name in snake_case (e.g., "new_value")
+ *
+ * @example
+ * paramNameToColumnName("newValue") // Returns: "new_value"
+ * paramNameToColumnName("value") // Returns: "value"
+ */
+export function paramNameToColumnName(paramName: string): string {
+  // Convert camelCase to snake_case
+  return paramName
+    .replace(/([A-Z])/g, '_$1') // Insert underscore before capital letters
+    .toLowerCase() // Convert to lowercase
+}

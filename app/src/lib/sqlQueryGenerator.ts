@@ -54,11 +54,11 @@ LIMIT 10`
       queries.push({
         name: `${eventName} by ${firstColumn}`,
         description: `Group ${eventName} events by ${firstColumn}`,
-        query: `SELECT ${firstColumn}, COUNT(*) as count
+        query: `SELECT ${firstColumn}, COUNT(*)
 FROM "${datasetName}".${tableName}
 ${addressFilter}
 GROUP BY ${firstColumn}
-ORDER BY count DESC
+ORDER BY ${firstColumn} DESC
 LIMIT 10`
       })
     }

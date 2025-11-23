@@ -4,6 +4,7 @@ import type { Abi, Address } from 'viem'
 import type { AbiEvent } from 'abitype'
 import { performAmpQuery, EVENTS_DATASET } from '../lib/runtime'
 import { categorizeAbi } from '../lib/abiHelpers'
+import { eventNameToTableName, paramNameToColumnName } from '../lib/ampHelpers'
 
 const ITEMS_PER_PAGE = 10
 
@@ -40,15 +41,22 @@ interface EventTableProps {
 function EventTable({ event, contractAddress }: EventTableProps) {
   const [page, setPage] = useState(0)
 
-  // Convert event name to lowercase for Amp table name
-  const tableName = event.name.toLowerCase()
+  // Amp's eventTables uses snake_case for table names (e.g., "ValueReturned" -> "value_returned")
+  const tableName = eventNameToTableName(event.name)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['Amp', 'Events', { event: event.name, address: contractAddress, page }] as const,
     async queryFn() {
       try {
         // Get column names from event inputs
-        const eventColumns = event.inputs?.map((input) => input.name || input.type) || []
+        // Amp converts parameter names to snake_case (e.g., "newValue" -> "new_value")
+        const eventColumns = event.inputs?.map((input) => {
+          if (input.name) {
+            return paramNameToColumnName(input.name)
+          }
+          // If no name, use the type (but this shouldn't happen with proper ABIs)
+          return input.type.toLowerCase().replace(/[^a-z0-9]/g, '_')
+        }) || []
         const allColumns = ['block_num', 'timestamp', ...eventColumns]
 
         const offset = page * ITEMS_PER_PAGE
