@@ -35,7 +35,7 @@ export function DynamicFunctionButtons({ contractAddress, contractAbi }: Props) 
   }
 
   return (
-    <div className="flex flex-row flex-wrap gap-3">
+    <div className="space-y-2">
       {writeFunctions.map((func) => (
         <FunctionButton
           key={func.name}
@@ -98,17 +98,17 @@ function SimpleButton({ func, contractAddress, contractAbi }: FunctionButtonProp
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="w-full">
       <button
         type="button"
         onClick={handleClick}
         disabled={status === 'pending'}
-        className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+        className="w-full rounded-md bg-[var(--ide-accent-primary)] px-3 py-2 text-xs font-medium text-white hover:bg-[var(--ide-accent-focus)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
       >
-        {status === 'pending' ? `${func.name}...` : func.name}()
+        {status === 'pending' ? `${func.name}...` : `${func.name}()`}
       </button>
       {error && (
-        <span className="text-xs text-red-600">{error.message}</span>
+        <div className="mt-1 text-xs text-red-400">{error.message}</div>
       )}
     </div>
   )
@@ -198,17 +198,17 @@ function ParameterizedButton({ func, contractAddress, contractAbi }: FunctionBut
   }
 
   return (
-    <div className="border border-gray-300 rounded-lg p-3">
+    <div className="border border-[var(--ide-border-default)] rounded-md bg-[var(--ide-input-bg)]">
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between w-full text-left"
+        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[var(--ide-hover-bg)] transition-colors"
       >
-        <span className="font-medium text-sm">
-          {func.name}({func.inputs!.length} {func.inputs!.length === 1 ? 'param' : 'params'})
+        <span className="text-xs font-medium text-[var(--ide-text-primary)]">
+          {func.name}({func.inputs!.length})
         </span>
         <svg
-          className={`h-5 w-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          className={`h-3 w-3 text-[var(--ide-text-muted)] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -218,7 +218,7 @@ function ParameterizedButton({ func, contractAddress, contractAbi }: FunctionBut
       </button>
 
       {isExpanded && (
-        <form onSubmit={handleSubmit} className="mt-3 space-y-3">
+        <form onSubmit={handleSubmit} className="px-3 pb-3 pt-2 space-y-2 border-t border-[var(--ide-border-default)]">
           {func.inputs!.map((input, index) => {
             const displayName = getParameterDisplayName(input, index)
             const inputType = getInputType(input.type)
@@ -226,16 +226,16 @@ function ParameterizedButton({ func, contractAddress, contractAbi }: FunctionBut
 
             return (
               <div key={index}>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-xs font-medium text-[var(--ide-text-muted)] mb-1">
                   {displayName}
-                  <span className="text-gray-500 text-xs ml-2">({input.type})</span>
+                  <span className="text-[var(--ide-text-muted)] ml-1">({input.type})</span>
                 </label>
                 {inputType === 'checkbox' ? (
                   <input
                     type="checkbox"
                     checked={args[index] === 'true' || args[index] === '1'}
                     onChange={(e) => handleInputChange(index, e.target.checked ? 'true' : 'false')}
-                    className="mt-1 h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-[var(--ide-border-default)]"
                   />
                 ) : (
                   <input
@@ -243,30 +243,28 @@ function ParameterizedButton({ func, contractAddress, contractAbi }: FunctionBut
                     value={args[index] || ''}
                     onChange={(e) => handleInputChange(index, e.target.value)}
                     placeholder={placeholder}
-                    className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
+                    className={`block w-full rounded-md bg-[var(--ide-editor-bg)] border-[var(--ide-border-default)] text-[var(--ide-text-primary)] text-xs px-2 py-1.5 focus:border-[var(--ide-accent-primary)] focus:ring-1 focus:ring-[var(--ide-accent-primary)] ${
                       errors[index] ? 'border-red-500' : ''
                     }`}
                   />
                 )}
                 {errors[index] && (
-                  <p className="mt-1 text-xs text-red-600">{errors[index]}</p>
+                  <p className="mt-1 text-xs text-red-400">{errors[index]}</p>
                 )}
               </div>
             )
           })}
 
-          <div className="flex items-center gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={status === 'pending'}
-              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {status === 'pending' ? 'Executing...' : `Execute ${func.name}`}
-            </button>
-            {txError && (
-              <span className="text-xs text-red-600">{txError.message}</span>
-            )}
-          </div>
+          <button
+            type="submit"
+            disabled={status === 'pending'}
+            className="w-full mt-2 rounded-md bg-[var(--ide-accent-primary)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--ide-accent-focus)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {status === 'pending' ? 'Executing...' : 'Execute'}
+          </button>
+          {txError && (
+            <div className="text-xs text-red-400 mt-1">{txError.message}</div>
+          )}
         </form>
       )}
     </div>

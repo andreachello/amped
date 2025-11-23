@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql } from '@codemirror/lang-sql'
 import type { Address } from 'viem'
-import { QueryResults } from './QueryResults'
 
 const EXAMPLE_QUERIES = (contractAddress?: Address) => [
   {
@@ -47,13 +46,13 @@ interface SavedQuery {
 
 interface Props {
   contractAddress?: Address
+  query: string
+  onQueryChange: (query: string) => void
+  onExecuteQuery: () => void
+  isLoading: boolean
 }
 
-export function SQLQueryInterface({ contractAddress }: Props) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuery, isLoading }: Props) {
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [queryName, setQueryName] = useState('')
@@ -70,39 +69,8 @@ export function SQLQueryInterface({ contractAddress }: Props) {
     }
   }, [])
 
-  const executeQuery = async () => {
-    if (!query.trim()) return
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('http://localhost:3001/api/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Query failed')
-      }
-
-      setResults(data.results || [])
-    } catch (err: any) {
-      setError(err.message || 'An error occurred')
-      setResults([])
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const loadExample = (example: { name: string; query: string }) => {
-    setQuery(example.query)
-    setError(null)
+    onQueryChange(example.query)
   }
 
   const saveQuery = () => {
@@ -122,8 +90,7 @@ export function SQLQueryInterface({ contractAddress }: Props) {
   }
 
   const loadSavedQuery = (saved: SavedQuery) => {
-    setQuery(saved.query)
-    setError(null)
+    onQueryChange(saved.query)
   }
 
   const deleteSavedQuery = (index: number) => {
@@ -132,87 +99,63 @@ export function SQLQueryInterface({ contractAddress }: Props) {
     localStorage.setItem(SAVED_QUERIES_KEY, JSON.stringify(updated))
   }
 
-  const exportCSV = () => {
-    if (results.length === 0) return
-
-    const headers = Object.keys(results[0])
-    const csvRows = [
-      headers.join(','),
-      ...results.map(row =>
-        headers.map(header => {
-          const value = row[header]
-          const stringValue = value !== null && value !== undefined ? String(value) : ''
-          return `"${stringValue.replace(/"/g, '""')}"`
-        }).join(',')
-      )
-    ]
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `query-results-${Date.now()}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const exportJSON = () => {
-    if (results.length === 0) return
-
-    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `query-results-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
-    <div className="space-y-2">
+    <div className="h-full flex flex-col p-3 space-y-3">
       {/* Query Editor */}
-      <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
-        <div className="bg-gray-800 text-white px-4 py-2 text-sm font-mono flex items-center justify-between">
+      <div className="flex-1 flex flex-col border border-[var(--ide-border-default)] rounded-lg overflow-hidden">
+        <div className="bg-gray-800 text-white px-4 py-2 text-sm font-mono flex items-center justify-between border-b border-[var(--ide-border-default)]">
           <span>SQL Query</span>
           <button
             onClick={() => setShowSaveDialog(true)}
             disabled={!query.trim()}
-            className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Save Query
           </button>
         </div>
-        <CodeMirror
-          value={query}
-          height="120px"
-          theme="dark"
-          extensions={[sql()]}
-          onChange={(value) => setQuery(value)}
-          className="text-sm"
-        />
+        <div className="flex-1 overflow-hidden">
+          <CodeMirror
+            value={query}
+            height="100%"
+            theme="dark"
+            extensions={[sql()]}
+            onChange={onQueryChange}
+            className="text-sm h-full"
+          />
+        </div>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-2">
         <button
-          onClick={executeQuery}
+          onClick={onExecuteQuery}
           disabled={isLoading || !query.trim()}
-          className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center px-4 py-2 shadow-sm text-sm font-medium rounded-md text-white bg-[var(--ide-accent-primary)] hover:bg-[var(--ide-accent-focus)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {isLoading ? 'Executing...' : 'Run Query'}
+          {isLoading ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Executing...
+            </>
+          ) : (
+            'Run Query'
+          )}
         </button>
 
         {/* Example Queries Dropdown */}
         <div className="relative group">
-          <button className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+          <button className="inline-flex items-center px-4 py-2 border border-[var(--ide-border-default)] shadow-sm text-sm font-medium rounded-md text-[var(--ide-text-primary)] bg-[var(--ide-input-bg)] hover:bg-[var(--ide-hover-bg)] transition-colors">
             Example Queries ▾
           </button>
-          <div className="hidden group-hover:block absolute z-10 mt-1 w-96 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+          <div className="hidden group-hover:block absolute z-[100] mt-1 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg">
             {EXAMPLE_QUERIES(contractAddress).map((example, idx) => (
               <button
                 key={idx}
                 onClick={() => loadExample(example)}
-                className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-md last:rounded-b-md"
+                className="block w-full text-left px-4 py-2 text-sm text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover-bg)] first:rounded-t-md last:rounded-b-md transition-colors"
               >
                 {example.name}
               </button>
@@ -223,24 +166,24 @@ export function SQLQueryInterface({ contractAddress }: Props) {
         {/* Saved Queries Dropdown */}
         {savedQueries.length > 0 && (
           <div className="relative group">
-            <button className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button className="inline-flex items-center px-4 py-2 border border-[var(--ide-border-default)] shadow-sm text-sm font-medium rounded-md text-[var(--ide-text-primary)] bg-[var(--ide-input-bg)] hover:bg-[var(--ide-hover-bg)] transition-colors">
               Saved Queries ({savedQueries.length}) ▾
             </button>
-            <div className="hidden group-hover:block absolute z-10 mt-1 w-96 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-64 overflow-y-auto">
+            <div className="hidden group-hover:block absolute z-[100] mt-1 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg max-h-64 overflow-y-auto">
               {savedQueries.map((saved, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="flex items-center justify-between px-4 py-2 text-sm hover:bg-[var(--ide-hover-bg)] transition-colors"
                 >
                   <button
                     onClick={() => loadSavedQuery(saved)}
-                    className="flex-1 text-left text-gray-700 dark:text-gray-300"
+                    className="flex-1 text-left text-[var(--ide-text-primary)]"
                   >
                     {saved.name}
                   </button>
                   <button
                     onClick={() => deleteSavedQuery(idx)}
-                    className="ml-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                    className="ml-2 text-red-400 hover:text-red-300 transition-colors"
                   >
                     ✕
                   </button>
@@ -254,21 +197,21 @@ export function SQLQueryInterface({ contractAddress }: Props) {
       {/* Save Query Dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Save Query</h3>
+          <div className="bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-lg p-6 w-96">
+            <h3 className="text-lg font-semibold text-[var(--ide-text-primary)] mb-4">Save Query</h3>
             <input
               type="text"
               value={queryName}
               onChange={(e) => setQueryName(e.target.value)}
               placeholder="Query name..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-[var(--ide-border-default)] rounded-md bg-[var(--ide-input-bg)] text-[var(--ide-text-primary)]"
               autoFocus
             />
             <div className="flex gap-2 mt-4">
               <button
                 onClick={saveQuery}
                 disabled={!queryName.trim()}
-                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-[var(--ide-accent-primary)] text-white rounded-md hover:bg-[var(--ide-accent-focus)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Save
               </button>
@@ -277,7 +220,7 @@ export function SQLQueryInterface({ contractAddress }: Props) {
                   setShowSaveDialog(false)
                   setQueryName('')
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="flex-1 px-4 py-2 border border-[var(--ide-border-default)] rounded-md text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover-bg)] transition-colors"
               >
                 Cancel
               </button>
@@ -285,15 +228,6 @@ export function SQLQueryInterface({ contractAddress }: Props) {
           </div>
         </div>
       )}
-
-      {/* Results */}
-      <QueryResults
-        results={results}
-        isLoading={isLoading}
-        error={error}
-        onExportCSV={exportCSV}
-        onExportJSON={exportJSON}
-      />
     </div>
   )
 }

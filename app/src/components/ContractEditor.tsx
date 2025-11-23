@@ -52,18 +52,20 @@ export function ContractEditor({ onCodeChange, initialCode }: ContractEditorProp
   }
 
   return (
-    <div className="w-full border border-gray-300 rounded-lg overflow-hidden">
-      <div className="bg-gray-800 text-white px-4 py-2 text-sm font-mono">
+    <div className="w-full h-full flex flex-col border border-[var(--ide-border-default)] rounded-lg overflow-hidden">
+      <div className="bg-gray-800 text-white px-4 py-2 text-sm font-mono border-b border-[var(--ide-border-default)]">
         contracts/src/Counter.sol
       </div>
-      <CodeMirror
-        value={code}
-        height="400px"
-        theme="dark"
-        extensions={[javascript({ jsx: false })]}
-        onChange={handleChange}
-        className="text-sm"
-      />
+      <div className="flex-1">
+        <CodeMirror
+          value={code}
+          height="100%"
+          theme="dark"
+          extensions={[javascript({ jsx: false })]}
+          onChange={handleChange}
+          className="text-sm h-full"
+        />
+      </div>
     </div>
   )
 }

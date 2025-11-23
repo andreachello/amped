@@ -1,1 +1,130 @@
 @import "tailwindcss";
+
+/* IDE Theme - VS Code Dark Colors */
+@layer base {
+  .dark {
+    /* Backgrounds */
+    --ide-editor-bg: #1e1e1e;
+    --ide-sidebar-bg: #252526;
+    --ide-activity-bar-bg: #333333;
+    --ide-panel-bg: #1e1e1e;
+    --ide-tab-inactive-bg: #2d2d2d;
+    --ide-tab-border: #252526;
+    --ide-input-bg: #3c3c3c;
+    --ide-hover-bg: #2a2d2e;
+
+    /* Text */
+    --ide-text-primary: #cccccc;
+    --ide-text-secondary: #bbbbbb;
+    --ide-text-muted: #858585;
+    --ide-text-active: #c6c6c6;
+
+    /* Accents */
+    --ide-accent-primary: #007acc;
+    --ide-accent-focus: #007fd4;
+    --ide-accent-selection: #264f78;
+
+    /* Borders */
+    --ide-border-subtle: #1e1e1e;
+    --ide-border-default: #3e3e42;
+    --ide-border-active: #007acc;
+
+    /* Status */
+    --ide-success: #0dbc79;
+    --ide-warning: #e5e510;
+    --ide-error: #f14c4c;
+    --ide-info: #3b8eea;
+  }
+}
+
+/* IDE Utility Classes */
+@layer components {
+  .ide-editor {
+    background: var(--ide-editor-bg);
+    color: var(--ide-text-primary);
+  }
+
+  .ide-sidebar {
+    background: var(--ide-sidebar-bg);
+    color: var(--ide-text-primary);
+  }
+
+  .ide-activity-bar {
+    background: var(--ide-activity-bar-bg);
+    color: var(--ide-text-muted);
+  }
+
+  .ide-panel {
+    background: var(--ide-panel-bg);
+    border: 1px solid var(--ide-border-default);
+  }
+
+  .ide-tab {
+    background: var(--ide-tab-inactive-bg);
+    color: var(--ide-text-muted);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border-top: 2px solid transparent;
+    cursor: pointer;
+    transition: all 150ms;
+  }
+
+  .ide-tab:hover {
+    color: var(--ide-text-primary);
+  }
+
+  .ide-tab-active {
+    background: var(--ide-editor-bg);
+    color: var(--ide-text-primary);
+    border-top-color: var(--ide-accent-primary);
+  }
+
+  .ide-input {
+    background: var(--ide-input-bg);
+    color: var(--ide-text-primary);
+    border: 1px solid var(--ide-border-default);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .ide-input:focus {
+    border-color: var(--ide-accent-focus);
+    outline: 1px solid var(--ide-accent-focus);
+  }
+
+  .ide-button-primary {
+    background: var(--ide-accent-primary);
+    color: white;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background 150ms;
+  }
+
+  .ide-button-primary:hover {
+    background: #005a9e;
+  }
+
+  .ide-button-secondary {
+    background: var(--ide-hover-bg);
+    color: var(--ide-text-primary);
+    border: 1px solid var(--ide-border-default);
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .ide-button-secondary:hover {
+    background: #3a3d41;
+  }
+
+  .ide-border {
+    border-color: var(--ide-border-default);
+  }
+
+  .ide-border-subtle {
+    border-color: var(--ide-border-subtle);
+  }
+}

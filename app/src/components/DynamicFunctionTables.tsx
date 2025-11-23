@@ -33,12 +33,12 @@ export function DynamicFunctionTables({ contractAddress, contractAbi, functionEv
     <div className="w-full">
       {/* Tab Headers */}
       <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto" aria-label="Tabs">
+        <nav className="-mb-px flex space-x-4 overflow-x-auto" aria-label="Tabs">
           {writeFunctions.map((func, index) => (
             <button
               key={func.name}
               onClick={() => setActiveTab(index)}
-              className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 index === activeTab
                   ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
@@ -51,7 +51,7 @@ export function DynamicFunctionTables({ contractAddress, contractAbi, functionEv
       </div>
 
       {/* Tab Content */}
-      <div className="mt-4">
+      <div className="mt-2">
         <FunctionTable
           func={activeFunction}
           contractAddress={contractAddress}
@@ -198,13 +198,13 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
                     <tr>
                       <th
                         scope="col"
-                        className="py-3.5 pr-3 pl-4 text-left text-sm font-semibold text-gray-900 sm:pl-0 dark:text-white"
+                        className="py-2 pr-2 pl-3 text-left text-sm font-semibold text-gray-900 sm:pl-0 dark:text-white"
                       >
                         Block #
                       </th>
                       <th
                         scope="col"
-                        className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white"
+                        className="px-2 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white"
                       >
                         Timestamp
                       </th>
@@ -212,7 +212,7 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
                         <th
                           key={idx}
                           scope="col"
-                          className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white"
+                          className="px-2 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white"
                         >
                           {input.name || `param${idx}`}
                           <span className="text-xs text-gray-500 ml-1">({input.type})</span>
@@ -223,10 +223,10 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
                   <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                     {results.map((row, rowIndex) => (
                       <tr key={`${row.block_num}-${row.timestamp}-${rowIndex}`}>
-                        <td className="py-4 pr-3 pl-4 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">
+                        <td className="py-2 pr-2 pl-3 text-sm font-medium whitespace-nowrap text-gray-900 sm:pl-0 dark:text-white">
                           {row.block_num}
                         </td>
-                        <td className="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
+                        <td className="px-2 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
                           {row.timestamp}
                         </td>
                         {primaryEvent.inputs?.map((input: any, idx: number) => {
@@ -234,7 +234,7 @@ function FunctionTable({ func, contractAddress, functionEventMapping, allEvents 
                           return (
                             <td
                               key={idx}
-                              className="px-3 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
+                              className="px-2 py-2 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
                             >
                               {value !== null && value !== undefined
                                 ? String(value)

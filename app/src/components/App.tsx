@@ -8,13 +8,13 @@ import { address as defaultContractAddress } from "../lib/viem.ts";
 import { ContractEditor } from "./ContractEditor.tsx";
 import { DeployButton } from "./DeployButton.tsx";
 import { DeploymentStatus } from "./DeploymentStatus.tsx";
-import { DynamicFunctionButtons } from "./DynamicFunctionButtons.tsx";
+import { ContractFunctions } from "./ContractFunctions.tsx";
 import { ViewFunctionDisplay } from "./ViewFunctionDisplay.tsx";
 import { DynamicFunctionTables } from "./DynamicFunctionTables.tsx";
 import { DeploymentSelector } from "./DeploymentSelector.tsx";
 import { LogsAndTransactionsTabs } from "./LogsAndTransactionsTabs.tsx";
-import { SQLQueryInterface } from "./SQLQueryInterface.tsx";
-import { Section, TabButton, PrimaryButton } from "./UnifiedLayout.tsx";
+import { SQLEditor } from "./SQLEditor.tsx";
+import { SQLResults } from "./SQLResults.tsx";
 import {
   addDeployment,
   loadDeployments,
@@ -23,11 +23,12 @@ import {
 import { getContractFunctionEventMapping, type FunctionEventMapping } from "../lib/contractParser.ts";
 import { categorizeAbi } from "../lib/abiHelpers.ts";
 import { privateKeyToAccount } from "viem/accounts";
+import { IDELayout } from "./layout/IDELayout.tsx";
+import { EditorPanel, type EditorTab } from "./layout/EditorPanel.tsx";
+import { InspectorPanel } from "./layout/InspectorPanel.tsx";
+import { BottomPanel, type BottomPanelTab } from "./layout/BottomPanel.tsx";
+import type { ActivityView } from "./layout/ActivityBar.tsx";
 
-/**
- * This is one of the private keys created by anvil and is available to perform transactions for.
- * Any of the private keys can be used.
- */
 const account = privateKeyToAccount(
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 );
@@ -50,14 +51,21 @@ export function App() {
   // Deployment history state
   const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null)
 
-  // Top-level tab state
-  const [activeMainTab, setActiveMainTab] = useState<'edit' | 'interact' | 'sql'>('edit')
+  // IDE Layout state
+  const [activeSidebarView, setActiveSidebarView] = useState<ActivityView>('explorer')
+  const [activeEditorTab, setActiveEditorTab] = useState('editor')
+  const [activeBottomTab, setActiveBottomTab] = useState('results')
+
+  // SQL state
+  const [sqlQuery, setSqlQuery] = useState('')
+  const [sqlResults, setSqlResults] = useState<any[]>([])
+  const [sqlIsLoading, setSqlIsLoading] = useState(false)
+  const [sqlError, setSqlError] = useState<string | null>(null)
 
   // Load deployment history on mount
   useEffect(() => {
     const deployments = loadDeployments()
     if (deployments.length > 0) {
-      // Use the most recent deployment as active
       const latest = deployments[deployments.length - 1]
       setActiveDeploymentId(latest.id)
       setContractAddress(latest.address)
@@ -75,15 +83,13 @@ export function App() {
     setDeploymentStatus('success')
     setDeploymentResult(result)
 
-    // Save to deployment history
     if (result.address && result.abi) {
-      // Parse contract to get function-event mappings
       const { writeFunctions, events } = categorizeAbi(result.abi as Abi)
       const functionNames = writeFunctions.map(f => f.name)
       const eventNames = events.map((e: any) => e.name)
 
       const mapping = getContractFunctionEventMapping(
-        code, // Current contract source code
+        code,
         functionNames,
         eventNames
       )
@@ -93,8 +99,8 @@ export function App() {
         result.abi as Abi,
         result.transactionHash || '',
         `Contract ${new Date().toLocaleTimeString()}`,
-        code, // Store source code
-        mapping // Store function-event mapping
+        code,
+        mapping
       )
       setActiveDeploymentId(deployment.id)
       setContractAddress(deployment.address)
@@ -102,8 +108,6 @@ export function App() {
       setFunctionEventMapping(mapping)
     }
 
-    // Only invalidate view functions (read-only state)
-    // Don't invalidate event queries - they'll load on demand when tabs are clicked
     setTimeout(() => {
       queryClient.invalidateQueries({
         predicate: (query) =>
@@ -125,150 +129,238 @@ export function App() {
     setContractAbi(deployment.abi)
     setFunctionEventMapping(deployment.functionEventMapping)
 
-    // Refresh queries with the selected deployment
     setTimeout(() => {
       queryClient.invalidateQueries()
     }, 100)
   }
 
-  return (
-    <div className="min-h-full">
-      <div className="border-b border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 justify-between">
-            <div className="flex">
-              <div className="flex shrink-0 items-center">Amp Demo - Dynamic Contract Editor</div>
-            </div>
-            <div className="w-fit flex items-center">
-              {`${address.substring(0, 6)}...${address.substring(
-                address.length - 6,
-                address.length
-              )}`}
-            </div>
+  const executeQuery = async () => {
+    if (!sqlQuery.trim()) return
+
+    setSqlIsLoading(true)
+    setSqlError(null)
+    setActiveBottomTab('results') // Switch to results tab
+
+    try {
+      const response = await fetch('http://localhost:3001/api/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: sqlQuery }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Query failed')
+      }
+
+      setSqlResults(data.results || [])
+    } catch (err: any) {
+      setSqlError(err.message || 'An error occurred')
+      setSqlResults([])
+    } finally {
+      setSqlIsLoading(false)
+    }
+  }
+
+  // Define editor tabs
+  const editorTabs: EditorTab[] = [
+    {
+      id: 'editor',
+      title: 'Contract Editor',
+      content: (
+        <div className="h-full flex flex-col">
+          <div className="flex-1 min-h-0 p-3">
+            <ContractEditor onCodeChange={setCode} />
+          </div>
+          <div className="flex-shrink-0 border-t border-[var(--ide-border-default)] px-3 py-2 bg-[var(--ide-sidebar-bg)] space-y-1.5">
+            <DeployButton
+              code={code}
+              onDeployStart={handleDeployStart}
+              onDeploySuccess={handleDeploySuccess}
+              onDeployError={handleDeployError}
+            />
+            <DeploymentStatus
+              status={deploymentStatus}
+              address={deploymentResult?.address}
+              transactionHash={deploymentResult?.transactionHash}
+              error={deploymentError}
+            />
           </div>
         </div>
-      </div>
+      )
+    },
+    {
+      id: 'sql',
+      title: 'SQL Query',
+      content: (
+        <SQLEditor
+          contractAddress={contractAddress}
+          query={sqlQuery}
+          onQueryChange={setSqlQuery}
+          onExecuteQuery={executeQuery}
+          isLoading={sqlIsLoading}
+        />
+      )
+    }
+  ]
 
-      {/* Main Tab Navigation */}
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <nav className="-mb-px flex space-x-2" aria-label="Main Tabs">
-            <TabButton active={activeMainTab === 'edit'} onClick={() => setActiveMainTab('edit')}>
-              Edit & Deploy
-            </TabButton>
-            <TabButton active={activeMainTab === 'interact'} onClick={() => setActiveMainTab('interact')}>
-              Contract Interface
-            </TabButton>
-            <TabButton active={activeMainTab === 'sql'} onClick={() => setActiveMainTab('sql')}>
-              SQL Query
-            </TabButton>
-          </nav>
+  // Define bottom panel tabs
+  const bottomTabs: BottomPanelTab[] = [
+    {
+      id: 'results',
+      title: 'Query Results',
+      content: (
+        <div className="h-full p-3">
+          <SQLResults
+            results={sqlResults}
+            isLoading={sqlIsLoading}
+            error={sqlError}
+          />
         </div>
-      </div>
-
-      <main className="w-full flex flex-col gap-y-6 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-        {/* Edit & Deploy Tab */}
-        {activeMainTab === 'edit' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <Section
-                title="Contract Editor"
-                description="Edit your Solidity contract code and deploy to the local Anvil blockchain"
-              >
-                <div className="space-y-4">
-                  <ContractEditor onCodeChange={setCode} />
-                  <DeployButton
-                    code={code}
-                    onDeployStart={handleDeployStart}
-                    onDeploySuccess={handleDeploySuccess}
-                    onDeployError={handleDeployError}
-                  />
-                  <DeploymentStatus
-                    status={deploymentStatus}
-                    address={deploymentResult?.address}
-                    transactionHash={deploymentResult?.transactionHash}
-                    error={deploymentError}
-                  />
-                </div>
-              </Section>
+      )
+    },
+    {
+      id: 'events',
+      title: 'Event History',
+      content: (
+        <div className="h-full p-3">
+          {contractAddress ? (
+            <DynamicFunctionTables
+              contractAddress={contractAddress}
+              contractAbi={contractAbi}
+              functionEventMapping={functionEventMapping}
+            />
+          ) : (
+            <div className="text-center py-12 text-[var(--ide-text-muted)]">
+              Deploy a contract first to view events
             </div>
-            <div className="lg:col-span-1">
-              <div className="sticky top-6">
-                <DeploymentSelector
-                  activeDeploymentId={activeDeploymentId}
-                  onSelectDeployment={handleSelectDeployment}
+          )}
+        </div>
+      )
+    },
+    {
+      id: 'logs',
+      title: 'Logs & Transactions',
+      content: (
+        <div className="h-full p-3">
+          <LogsAndTransactionsTabs />
+        </div>
+      )
+    },
+    {
+      id: 'output',
+      title: 'Output',
+      content: (
+        <div className="h-full p-3">
+          <div className="text-[var(--ide-text-muted)] text-sm">
+            Deployment output and logs will appear here
+          </div>
+        </div>
+      )
+    }
+  ]
+
+  // Sidebar content based on active view
+  const getSidebarContent = () => {
+    switch (activeSidebarView) {
+      case 'deployments':
+        return (
+          <DeploymentSelector
+            activeDeploymentId={activeDeploymentId}
+            onSelectDeployment={handleSelectDeployment}
+          />
+        )
+      case 'contract':
+        return (
+          <div className="p-3 text-sm text-[var(--ide-text-muted)]">
+            Contract functions and ABI will appear here
+          </div>
+        )
+      case 'sql':
+        return (
+          <div className="p-3 text-sm text-[var(--ide-text-muted)]">
+            Saved SQL queries will appear here
+          </div>
+        )
+      default:
+        return (
+          <DeploymentSelector
+            activeDeploymentId={activeDeploymentId}
+            onSelectDeployment={handleSelectDeployment}
+          />
+        )
+    }
+  }
+
+  return (
+    <IDELayout
+      walletAddress={address}
+      contractAddress={contractAddress}
+      contractName="Counter.sol"
+      onViewChange={setActiveSidebarView}
+      sidebarContent={getSidebarContent()}
+      editorContent={
+        <EditorPanel
+          tabs={editorTabs}
+          activeTabId={activeEditorTab}
+          onTabChange={setActiveEditorTab}
+        />
+      }
+      inspectorContent={
+        <InspectorPanel isOpen={true} onToggle={() => {}}>
+          {contractAddress ? (
+            <>
+              <div className="border-b border-[var(--ide-border-default)] pb-3 mb-3">
+                <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] mb-3 tracking-wider">
+                  CONTRACT STATE
+                </h3>
+                <ViewFunctionDisplay
+                  contractAddress={contractAddress}
+                  contractAbi={contractAbi}
                 />
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Contract Interface Tab */}
-        {activeMainTab === 'interact' && (
-          <div className="space-y-6">
-            {contractAddress ? (
-              <>
-                <Section
-                  title="View Functions"
-                  description="Read-only functions that query the current state of the contract"
-                >
-                  <ViewFunctionDisplay
-                    contractAddress={contractAddress}
-                    contractAbi={contractAbi}
-                  />
-                </Section>
-
-                <Section
-                  title="Write Functions"
-                  description="Execute state-changing functions on the contract. All transactions are recorded and queryable via Amp."
-                >
-                  <DynamicFunctionButtons
-                    contractAddress={contractAddress}
-                    contractAbi={contractAbi}
-                  />
-                </Section>
-
-                <Section
-                  title="Function Transactions"
-                  description="View transaction history for each function, indexed and queryable via Amp"
-                >
-                  <DynamicFunctionTables
-                    contractAddress={contractAddress}
-                    contractAbi={contractAbi}
-                    functionEventMapping={functionEventMapping}
-                  />
-                </Section>
-
-                <Section
-                  title="All Logs & Transactions"
-                  description="View all event logs and transactions across the blockchain"
-                >
-                  <LogsAndTransactionsTabs />
-                </Section>
-              </>
-            ) : (
-              <Section
-                title="Contract Interface"
-                description="View functions, write functions, and event transactions"
-              >
-                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                  Deploy a contract first to interact with it
+              <div className="border-b border-[var(--ide-border-default)] pb-3 mb-3">
+                <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] mb-3 tracking-wider">
+                  WRITE FUNCTIONS
+                </h3>
+                <ContractFunctions
+                  contractAddress={contractAddress}
+                  contractAbi={contractAbi}
+                />
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] mb-2 tracking-wider">
+                  DEPLOYMENT INFO
+                </h3>
+                <div className="text-xs space-y-1.5 bg-[var(--ide-input-bg)] border border-[var(--ide-border-default)] rounded-md p-2">
+                  <div className="flex flex-col">
+                    <span className="text-[var(--ide-text-muted)] mb-1">Address:</span>
+                    <span className="text-[var(--ide-text-primary)] font-mono break-all">
+                      {contractAddress}
+                    </span>
+                  </div>
                 </div>
-              </Section>
-            )}
-          </div>
-        )}
-
-        {/* SQL Query Tab */}
-        {activeMainTab === 'sql' && (
-          <Section
-            title="SQL Query Interface"
-            description="Write custom SQL queries to explore event logs and transaction data from your deployed contracts"
-          >
-            <SQLQueryInterface contractAddress={contractAddress} />
-          </Section>
-        )}
-      </main>
-    </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12 text-[var(--ide-text-muted)] text-xs">
+              Deploy a contract to view functions
+            </div>
+          )}
+        </InspectorPanel>
+      }
+      bottomContent={
+        <BottomPanel
+          tabs={bottomTabs}
+          activeTabId={activeBottomTab}
+          onTabChange={setActiveBottomTab}
+          isOpen={true}
+          onToggle={() => {}}
+        />
+      }
+    />
   );
 }

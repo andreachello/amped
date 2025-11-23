@@ -18,19 +18,14 @@ export function ViewFunctionDisplay({ contractAddress, contractAbi }: Props) {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-        Contract State (View Functions)
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {viewFunctions.map((func) => (
-          <ViewFunctionCard
-            key={func.name}
-            func={func}
-            contractAddress={contractAddress}
-            contractAbi={contractAbi}
-          />
-        ))}
-      </div>
+      {viewFunctions.map((func) => (
+        <ViewFunctionCard
+          key={func.name}
+          func={func}
+          contractAddress={contractAddress}
+          contractAbi={contractAbi}
+        />
+      ))}
     </div>
   )
 }
@@ -59,11 +54,11 @@ function ViewFunctionCard({ func, contractAddress, contractAbi }: ViewFunctionCa
   if (hasInputs) {
     // For functions with parameters, just show the signature
     return (
-      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
-        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {func.name}({func.inputs!.length} params)
+      <div className="border border-[var(--ide-border-default)] rounded-md p-2 bg-[var(--ide-input-bg)]">
+        <div className="text-xs font-medium text-[var(--ide-text-muted)]">
+          {func.name}({func.inputs!.length})
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <div className="text-xs text-[var(--ide-text-muted)] mt-0.5 italic">
           Requires parameters
         </div>
       </div>
@@ -73,22 +68,22 @@ function ViewFunctionCard({ func, contractAddress, contractAbi }: ViewFunctionCa
   const outputType = func.outputs?.[0]?.type || 'unknown'
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-900">
-      <div className="flex items-start justify-between">
+    <div className="border border-[var(--ide-border-default)] rounded-md p-2 bg-[var(--ide-input-bg)]">
+      <div className="flex items-start justify-between mb-2">
         <div className="flex-1">
-          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="text-xs font-medium text-[var(--ide-text-primary)]">
             {func.name}()
           </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <div className="text-xs text-[var(--ide-text-muted)] mt-0.5">
             {outputType}
           </div>
         </div>
         <button
           onClick={() => refetch()}
-          className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+          className="text-[var(--ide-accent-primary)] hover:text-[var(--ide-accent-focus)] transition-colors"
           title="Refresh"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -99,13 +94,13 @@ function ViewFunctionCard({ func, contractAddress, contractAbi }: ViewFunctionCa
         </button>
       </div>
 
-      <div className="mt-2">
+      <div>
         {isLoading ? (
-          <div className="text-sm text-gray-400 italic">Loading...</div>
+          <div className="text-xs text-[var(--ide-text-muted)] italic">Loading...</div>
         ) : error ? (
-          <div className="text-sm text-red-600">Error: {error.message}</div>
+          <div className="text-xs text-red-400">Error: {error.message}</div>
         ) : (
-          <div className="text-lg font-semibold text-gray-900 dark:text-white font-mono">
+          <div className="text-sm font-semibold text-[var(--ide-text-primary)] font-mono">
             {formatReturnValue(data, outputType)}
           </div>
         )}
