@@ -1,59 +1,42 @@
-import { EVENTS_DATASET } from '../lib/runtime'
+import { useMemo } from 'react'
+import type { Abi } from 'viem'
+import { generateGraphQueries } from '../lib/sqlQueryGenerator'
 
 interface Props {
   contractAddress?: string
+  contractAbi?: Abi
+  datasetName?: string
   onSelectQuery: (query: string, title: string) => void
 }
 
-const exampleQueries = [
-  {
-    title: 'Event Count Over Time',
-    description: 'Track all events by block number',
-    query: `SELECT block_num, COUNT(*) as count
-FROM "${EVENTS_DATASET}".incremented
-GROUP BY block_num
-ORDER BY block_num`
-  },
-  {
-    title: 'Events by Type',
-    description: 'Distribution of event types',
-    query: `SELECT event_type, COUNT(*) as count
-FROM "${EVENTS_DATASET}".incremented
-GROUP BY event_type`
-  },
-  {
-    title: 'Timestamp Analysis',
-    description: 'Events over time with timestamps',
-    query: `SELECT timestamp, COUNT(*) as count
-FROM "${EVENTS_DATASET}".incremented
-GROUP BY timestamp
-ORDER BY timestamp`
-  },
-  {
-    title: 'Block Activity',
-    description: 'Activity per block',
-    query: `SELECT block_num, COUNT(*) as activity
-FROM "${EVENTS_DATASET}".incremented
-GROUP BY block_num
-ORDER BY activity DESC
-LIMIT 20`
-  }
-]
-
-export function ExampleGraphQueries({ contractAddress, onSelectQuery }: Props) {
+export function ExampleGraphQueries({ contractAddress, contractAbi, datasetName, onSelectQuery }: Props) {
+  // Generate graph queries based on the deployed contract's ABI
+  const exampleQueries = useMemo(() => {
+    if (contractAbi && datasetName) {
+      return generateGraphQueries(contractAbi, datasetName, contractAddress)
+    }
+    return []
+  }, [contractAbi, datasetName, contractAddress])
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-xs font-semibold text-[var(--ide-text-muted)] mb-2 tracking-wider">
-          EXAMPLE QUERIES
+          EXAMPLE GRAPH QUERIES
         </h3>
         <div className="text-xs text-[var(--ide-text-muted)] mb-3">
-          Click to load query into SQL editor
+          {exampleQueries.length > 0
+            ? 'Click to load query into SQL editor'
+            : 'Deploy a contract with events to see example queries'}
         </div>
       </div>
 
-      <div className="space-y-2">
-        {exampleQueries.map((example, index) => (
+      {exampleQueries.length === 0 ? (
+        <div className="text-xs text-[var(--ide-text-muted)] italic p-3 border border-[var(--ide-border-default)] rounded">
+          No graph queries available. Deploy a contract with events to generate example queries.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {exampleQueries.map((example, index) => (
           <button
             key={index}
             onClick={() => onSelectQuery(example.query, example.title)}
@@ -80,7 +63,8 @@ export function ExampleGraphQueries({ contractAddress, onSelectQuery }: Props) {
             </div>
           </button>
         ))}
-      </div>
+        </div>
+      )}
 
       <div className="pt-2 border-t border-[var(--ide-border-default)]">
         <div className="text-xs text-[var(--ide-text-muted)] space-y-1">

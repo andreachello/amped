@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express'
 import cors from 'cors'
 import { deployContract } from './deploy.js'
 import { performAmpQuery } from './ampClient.js'
+import { validateSolidity } from './utils.js'
 
 const app = express()
 const PORT = 3001
@@ -26,15 +27,16 @@ app.post('/api/deploy', async (req: Request, res: Response) => {
       })
     }
 
-    // Basic validation
-    if (!code.includes('contract Counter')) {
+    // Validate contract code
+    const validation = validateSolidity(code)
+    if (!validation.valid) {
       return res.status(400).json({
-        error: 'Contract must be named "Counter"'
+        error: validation.error
       })
     }
 
     // Deploy the contract
-    const result = await deployContract(code)
+    const result = await deployContract(code, validation.contractName!)
 
     res.json(result)
   } catch (error: any) {

@@ -21,9 +21,9 @@ export function BottomPanel({ tabs, activeTabId, onTabChange, isOpen, onToggle }
   const activeTab = tabs.find(tab => tab.id === activeTabId)
 
   return (
-    <div className="ide-panel border-t border-[var(--ide-border-default)] flex flex-col">
+    <div className="h-full ide-panel border-t border-[var(--ide-border-default)] flex flex-col">
       {/* Panel Header with Tabs */}
-      <div className="flex items-center justify-between border-b border-[var(--ide-border-default)] bg-[var(--ide-tab-border)]">
+      <div className="flex-shrink-0 flex items-center justify-between border-b border-[var(--ide-border-default)] bg-[var(--ide-tab-border)]">
         <div className="flex items-center">
           {tabs.map((tab) => (
             <button
@@ -55,7 +55,7 @@ export function BottomPanel({ tabs, activeTabId, onTabChange, isOpen, onToggle }
       </div>
 
       {/* Panel Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
         {activeTab?.content}
       </div>
     </div>

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { sql } from '@codemirror/lang-sql'
-import type { Address } from 'viem'
+import type { Address, Abi } from 'viem'
+import { generateEventQueries, type GeneratedQuery } from '../lib/sqlQueryGenerator'
 
-const EXAMPLE_QUERIES = (contractAddress?: Address) => [
+const FALLBACK_QUERIES = (contractAddress?: Address) => [
   {
     name: 'All events from current contract',
     query: contractAddress
@@ -46,18 +47,28 @@ interface SavedQuery {
 
 interface Props {
   contractAddress?: Address
+  contractAbi?: Abi
+  datasetName?: string
   query: string
   onQueryChange: (query: string) => void
   onExecuteQuery: () => void
   isLoading: boolean
 }
 
-export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuery, isLoading }: Props) {
+export function SQLEditor({ contractAddress, contractAbi, datasetName, query, onQueryChange, onExecuteQuery, isLoading }: Props) {
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [queryName, setQueryName] = useState('')
   const [showExampleDropdown, setShowExampleDropdown] = useState(false)
   const [showSavedDropdown, setShowSavedDropdown] = useState(false)
+
+  // Generate example queries based on the deployed contract's ABI
+  const exampleQueries = useMemo(() => {
+    if (contractAbi && datasetName) {
+      return generateEventQueries(contractAbi, datasetName, contractAddress)
+    }
+    return FALLBACK_QUERIES(contractAddress)
+  }, [contractAbi, datasetName, contractAddress])
 
   // Load saved queries on mount
   useEffect(() => {
@@ -71,7 +82,7 @@ export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuer
     }
   }, [])
 
-  const loadExample = (example: { name: string; query: string }) => {
+  const loadExample = (example: GeneratedQuery) => {
     onQueryChange(example.query)
     setShowExampleDropdown(false)
   }
@@ -174,14 +185,17 @@ export function SQLEditor({ contractAddress, query, onQueryChange, onExecuteQuer
             Example Queries ▾
           </button>
           {showExampleDropdown && (
-            <div className="absolute z-[100] bottom-full mb-1 left-0 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg">
-              {EXAMPLE_QUERIES(contractAddress).map((example, idx) => (
+            <div className="absolute z-[100] bottom-full mb-1 left-0 w-96 bg-[var(--ide-sidebar-bg)] border border-[var(--ide-border-default)] rounded-md shadow-lg max-h-96 overflow-y-auto">
+              {exampleQueries.map((example, idx) => (
                 <button
                   key={idx}
                   onClick={() => loadExample(example)}
-                  className="block w-full text-left px-4 py-2 text-sm text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover-bg)] first:rounded-t-md last:rounded-b-md transition-colors"
+                  className="block w-full text-left px-4 py-2 text-sm text-[var(--ide-text-primary)] hover:bg-[var(--ide-hover-bg)] first:rounded-t-md last:rounded-b-md transition-colors border-b border-[var(--ide-border-default)] last:border-b-0"
                 >
-                  {example.name}
+                  <div className="font-medium">{example.name}</div>
+                  {example.description && (
+                    <div className="text-xs text-[var(--ide-text-muted)] mt-0.5">{example.description}</div>
+                  )}
                 </button>
               ))}
             </div>

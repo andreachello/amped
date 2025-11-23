@@ -10,6 +10,8 @@ export interface DeploymentRecord {
   label?: string
   sourceCode?: string
   functionEventMapping?: FunctionEventMapping
+  contractName?: string
+  datasetName?: string
 }
 
 const STORAGE_KEY = 'amp-deployment-history'
@@ -50,7 +52,9 @@ export function addDeployment(
   transactionHash: string,
   label?: string,
   sourceCode?: string,
-  functionEventMapping?: FunctionEventMapping
+  functionEventMapping?: FunctionEventMapping,
+  contractName?: string,
+  datasetName?: string
 ): DeploymentRecord {
   const deployment: DeploymentRecord = {
     id: `${Date.now()}-${address}`,
@@ -58,9 +62,11 @@ export function addDeployment(
     address,
     abi,
     transactionHash,
-    label: label || `Contract ${new Date().toLocaleTimeString()}`,
+    label: label || (contractName ? `${contractName} ${new Date().toLocaleTimeString()}` : `Contract ${new Date().toLocaleTimeString()}`),
     sourceCode,
     functionEventMapping,
+    contractName,
+    datasetName,
   }
 
   const existing = loadDeployments()

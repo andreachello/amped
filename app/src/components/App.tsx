@@ -52,6 +52,8 @@ export function App() {
   const [contractAddress, setContractAddress] = useState<Address>(defaultContractAddress)
   const [contractAbi, setContractAbi] = useState<Abi>(defaultAbi)
   const [functionEventMapping, setFunctionEventMapping] = useState<FunctionEventMapping | undefined>()
+  const [contractName, setContractName] = useState<string>('Counter')
+  const [datasetName, setDatasetName] = useState<string>('eth_global/counter@dev')
 
   // Deployment history state
   const [activeDeploymentId, setActiveDeploymentId] = useState<string | null>(null)
@@ -106,14 +108,18 @@ export function App() {
         result.address as Address,
         result.abi as Abi,
         result.transactionHash || '',
-        `Contract ${new Date().toLocaleTimeString()}`,
+        result.contractName ? `${result.contractName} ${new Date().toLocaleTimeString()}` : `Contract ${new Date().toLocaleTimeString()}`,
         code,
-        mapping
+        mapping,
+        result.contractName,
+        result.datasetName
       )
       setActiveDeploymentId(deployment.id)
       setContractAddress(deployment.address)
       setContractAbi(deployment.abi)
       setFunctionEventMapping(mapping)
+      setContractName(result.contractName || 'Contract')
+      setDatasetName(result.datasetName || 'eth_global/counter@dev')
     }
 
     setTimeout(() => {
@@ -136,6 +142,8 @@ export function App() {
     setContractAddress(deployment.address)
     setContractAbi(deployment.abi)
     setFunctionEventMapping(deployment.functionEventMapping)
+    setContractName(deployment.contractName || 'Contract')
+    setDatasetName(deployment.datasetName || 'eth_global/counter@dev')
 
     setTimeout(() => {
       queryClient.invalidateQueries()
@@ -232,6 +240,8 @@ export function App() {
       content: (
         <SQLEditor
           contractAddress={contractAddress}
+          contractAbi={contractAbi}
+          datasetName={datasetName}
           query={sqlQuery}
           onQueryChange={setSqlQuery}
           onExecuteQuery={executeQuery}
@@ -257,7 +267,7 @@ export function App() {
       id: 'results',
       title: 'Query Results',
       content: (
-        <div className="h-full p-3">
+        <div className="h-full p-3 overflow-auto">
           <SQLResults
             results={sqlResults}
             isLoading={sqlIsLoading}
@@ -318,7 +328,7 @@ export function App() {
       id: 'events',
       title: 'Event History',
       content: (
-        <div className="h-full p-3">
+        <div className="h-full p-3 overflow-auto">
           {contractAddress ? (
             <DynamicFunctionTables
               contractAddress={contractAddress}
@@ -337,7 +347,7 @@ export function App() {
       id: 'logs',
       title: 'Logs & Transactions',
       content: (
-        <div className="h-full p-3">
+        <div className="h-full p-3 overflow-auto">
           <LogsAndTransactionsTabs />
         </div>
       )
@@ -346,7 +356,7 @@ export function App() {
       id: 'output',
       title: 'Output',
       content: (
-        <div className="h-full p-3">
+        <div className="h-full p-3 overflow-auto">
           <div className="text-[var(--ide-text-muted)] text-sm">
             Deployment output and logs will appear here
           </div>
@@ -392,7 +402,7 @@ export function App() {
     <IDELayout
       walletAddress={address}
       contractAddress={contractAddress}
-      contractName="Counter.sol"
+      contractName={`${contractName}.sol`}
       onViewChange={setActiveSidebarView}
       sidebarContent={getSidebarContent()}
       editorContent={
@@ -407,6 +417,8 @@ export function App() {
           {activeEditorTab === 'graphs' ? (
             <ExampleGraphQueries
               contractAddress={contractAddress}
+              contractAbi={contractAbi}
+              datasetName={datasetName}
               onSelectQuery={handleSelectExampleQuery}
             />
           ) : contractAddress ? (

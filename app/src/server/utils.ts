@@ -1,4 +1,5 @@
 import { getAddress } from 'viem'
+import { validateContractExists } from '../lib/contractNameExtractor'
 
 interface BroadcastTransaction {
   transactionType: string
@@ -42,7 +43,7 @@ export function parseABI(abiData: any): any[] {
   return abiData.abi
 }
 
-export function validateSolidity(code: string): { valid: boolean; error?: string } {
+export function validateSolidity(code: string): { valid: boolean; error?: string; contractName?: string } {
   // Basic validation checks
   if (!code.trim()) {
     return { valid: false, error: 'Code cannot be empty' }
@@ -52,8 +53,10 @@ export function validateSolidity(code: string): { valid: boolean; error?: string
     return { valid: false, error: 'Missing pragma directive' }
   }
 
-  if (!code.includes('contract Counter')) {
-    return { valid: false, error: 'Contract must be named "Counter"' }
+  // Validate contract exists and extract name
+  const contractValidation = validateContractExists(code)
+  if (!contractValidation.valid) {
+    return { valid: false, error: contractValidation.error }
   }
 
   // Check for potentially dangerous operations (basic security)
@@ -71,5 +74,5 @@ export function validateSolidity(code: string): { valid: boolean; error?: string
     }
   }
 
-  return { valid: true }
+  return { valid: true, contractName: contractValidation.contractName! }
 }

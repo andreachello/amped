@@ -13,6 +13,8 @@ interface DeploymentResult {
   abi?: any[]
   transactionHash?: string
   logs?: string
+  contractName?: string
+  datasetName?: string
 }
 
 export function DeployButton({
