@@ -56,14 +56,20 @@ export function ContractEditor({ onCodeChange, initialCode }: ContractEditorProp
       <div className="bg-gray-800 text-white px-4 py-2 text-sm font-mono border-b border-[var(--ide-border-default)]">
         contracts/src/Counter.sol
       </div>
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 overflow-auto">
         <CodeMirror
           value={code}
           height="100%"
           theme="dark"
           extensions={[javascript({ jsx: false })]}
           onChange={handleChange}
-          className="text-sm h-full"
+          className="text-sm"
+          basicSetup={{
+            lineNumbers: true,
+            highlightActiveLineGutter: true,
+            highlightActiveLine: true,
+            foldGutter: true
+          }}
         />
       </div>
     </div>
